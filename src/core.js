@@ -199,7 +199,7 @@ function runHeadless(pl,level,d){const S=createSim(pl,level,d);if(!S)return {sta
 
 // ---------- ladders ----------
 const LADDERS=[
-  {id:'step',name:'Basamak',unit:'cm',rungs:[10,20,30,40,50],time:20,
+  {id:'step',name:'Basamak',unit:'cm',rungs:[10,20,30],time:20,
     geo:v=>track().flat(3.5).step(v/100).flat(2.5).end(true)},
   {id:'ramp',name:'Rampa',unit:'°',rungs:[15,20,25,30,35,40,45],time:25,
     geo:v=>track().flat(2.5).slope(v,1.3).flat(2.5).end(true)},
