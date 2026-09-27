@@ -44,7 +44,7 @@ const cv=$('cv');let ctx=cv.getContext('2d');let W=0,H=0,DPR=1;
 function resize(){DPR=Math.min(2,window.devicePixelRatio||1);W=cv.clientWidth;H=cv.clientHeight;cv.width=W*DPR;cv.height=H*DPR;}
 window.addEventListener('resize',()=>{resize();if(phase==='garage')layoutEditor();});resize();
 const cam={x:0,y:0,s:80,ay:.58};
-const scaleRun=()=>Math.min(W/4.6,H/4.2);
+const scaleRun=()=>Math.min(W/3.7,H/4.2);
 
 // ---------- drawing primitives (meters, y up) ----------
 function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);else ctx.rect(x,y,w,h);}
