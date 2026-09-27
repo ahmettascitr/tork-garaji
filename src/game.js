@@ -1,6 +1,7 @@
 (function(){
 const $=id=>document.getElementById(id);
-if(typeof planck==='undefined'){$('loading').textContent='Fizik motoru yüklenemedi.';return;}
+const tr=window.t||(s=>s);
+if(typeof planck==='undefined'){$('loading').textContent=tr('Fizik motoru yüklenemedi.');return;}
 $('loading').hidden=true;
 const C=CORE, pl=planck, K=C.key, CELL=C.CELL;
 
@@ -30,7 +31,7 @@ function owned(id){if(TOOLS.find(t=>t.id===id&&t.start))return true;return Objec
 const campKey=i=>'camp:'+C.CAMPAIGN[i].id;
 const campOpen=i=>i===0||isDone(campKey(i-1));
 const starsOf=i=>{const m=(prog.stars||{})[C.CAMPAIGN[i].id]||0;return (m&1)+((m>>1)&1)+((m>>2)&1);};
-const fmtN=(v,d)=>String(d!=null?(+v).toFixed(d):v).replace('.',',');
+const fmtN=(v,d)=>String(d!=null?(+v).toFixed(d):v).replace('.',window.DECSEP||',');
 const gearOwned=g=>g===1||(g===2&&owned('gear2'))||(g===0&&owned('gear0'));
 
 // default design: simple car
@@ -231,16 +232,16 @@ let flash=null; // {msg,t}
 // placement check for a single piece against the rest
 function checkPlace(rest,p){
   const cs=pieceCells(p);
-  for(const [x,y] of cs)if(x<0||y<0||x>=C.COLS||y>=C.ROWS)return 'Tahtanın dışında';
+  for(const [x,y] of cs)if(x<0||y<0||x>=C.COLS||y>=C.ROWS)return tr('Tahtanın dışında');
   const cells=compile(rest);
-  if(p.t==='beam'){for(const [x,y] of cs){const c=cells[K(x,y)];if(c&&c.base&&c.base!=='beam')return 'Bu kare dolu';}return null;}
-  if(p.t==='weight'||p.t==='hinge'){const c=cells[K(p.x,p.y)];if(c&&c.over&&p.t==='hinge')return 'Menteşenin üstüne parça takılamaz';if(c&&c.base&&c.base!=='beam')return 'Bu kare dolu';return null;}
+  if(p.t==='beam'){for(const [x,y] of cs){const c=cells[K(x,y)];if(c&&c.base&&c.base!=='beam')return tr('Bu kare dolu');}return null;}
+  if(p.t==='weight'||p.t==='hinge'){const c=cells[K(p.x,p.y)];if(c&&c.over&&p.t==='hinge')return tr('Menteşenin üstüne parça takılamaz');if(c&&c.base&&c.base!=='beam')return tr('Bu kare dolu');return null;}
   // overlays need a structural cell
   const c=cells[K(p.x,p.y)];
-  if(!c||!c.base||c.base==='hinge')return (p.t==='wheel'?'Teker':'Bu parça')+' bir kirişe takılmalı';
-  if(c.over)return 'Bu kirişte zaten bir parça var';
-  if(p.t==='wheel'){const ws=rest.filter(q=>q.t==='wheel');if(ws.length>=C.MAX_WHEELS)return 'En fazla '+C.MAX_WHEELS+' teker';
-    const r=C.WHEEL_R[p.size];for(const q of ws){const d=Math.hypot(q.x-p.x,q.y-p.y)*CELL;if(d<r+C.WHEEL_R[q.size]-0.005)return 'Tekerler iç içe geçiyor';}}
+  if(!c||!c.base||c.base==='hinge')return tr(p.t==='wheel'?'Teker bir kirişe takılmalı':'Bu parça bir kirişe takılmalı');
+  if(c.over)return tr('Bu kirişte zaten bir parça var');
+  if(p.t==='wheel'){const ws=rest.filter(q=>q.t==='wheel');if(ws.length>=C.MAX_WHEELS)return tr('En fazla {0} teker',C.MAX_WHEELS);
+    const r=C.WHEEL_R[p.size];for(const q of ws){const d=Math.hypot(q.x-p.x,q.y-p.y)*CELL;if(d<r+C.WHEEL_R[q.size]-0.005)return tr('Tekerler iç içe geçiyor');}}
   return null;}
 
 function drawPiece(p,alpha){ctx.globalAlpha=alpha;
@@ -255,24 +256,24 @@ function drawEditor(){
   bg();ctx.setTransform(DPR,0,0,DPR,0,0);
   ctx.fillStyle='rgba(28,32,36,.06)';rr(grid.x0-6,grid.y0-6,grid.cp*C.COLS+12,grid.cp*C.ROWS+12,10);ctx.fill();
   for(let x=0;x<C.COLS;x++)for(let y=0;y<C.ROWS;y++){ctx.fillStyle='rgba(28,32,36,.16)';ctx.beginPath();ctx.arc(grid.x0+(x+.5)*grid.cp,grid.y0+(y+.5)*grid.cp,Math.max(1.2,grid.cp*0.07),0,7);ctx.fill();}
-  ctx.fillStyle='#5b646d';ctx.font='600 12px Barlow, sans-serif';ctx.textAlign='right';ctx.fillText('İLERİ →',grid.x0+grid.cp*C.COLS,grid.y0-10);
+  ctx.fillStyle='#5b646d';ctx.font='600 12px Barlow, sans-serif';ctx.textAlign='right';ctx.fillText(tr('İLERİ →'),grid.x0+grid.cp*C.COLS,grid.y0-10);
   ctx.textAlign='left';const A=C.analyze(design);const nw=design.pieces.filter(p=>p.t==='wheel').length;
-  let head=(A.mass||0).toFixed(1).replace('.',',')+' kg · teker '+nw+'/'+C.MAX_WHEELS;if(level&&level.goals){const cst=C.costOf(design);head+=' · maliyet '+cst;ctx.fillText(head,grid.x0,grid.y0-10);if(cst<=level.goals.cost){ctx.fillStyle='#b98f06';ctx.fillText(' ★',grid.x0+ctx.measureText(head).width,grid.y0-10);}}else ctx.fillText(head,grid.x0,grid.y0-10);
+  let head=tr('{0} kg · teker {1}/{2}',(A.mass||0).toFixed(1).replace('.',window.DECSEP||','),nw,C.MAX_WHEELS);if(level&&level.goals){const cst=C.costOf(design);head+=tr(' · maliyet {0}',cst);ctx.fillText(head,grid.x0,grid.y0-10);if(cst<=level.goals.cost){ctx.fillStyle='#b98f06';ctx.fillText(' ★',grid.x0+ctx.measureText(head).width,grid.y0-10);}}else ctx.fillText(head,grid.x0,grid.y0-10);
   // hint line under board
   ctx.textAlign='center';ctx.fillStyle='#7a838c';ctx.font='500 12px Barlow, sans-serif';
-  ctx.fillText(drag?'Silmek için tahtanın dışına bırak':'Parçaları sürükle · Tekere dokun: motor aç/kapa',W/2,grid.y0+grid.cp*C.ROWS+22);
+  ctx.fillText(tr(drag?'Silmek için tahtanın dışına bırak':'Parçaları sürükle · Tekere dokun: motor aç/kapa'),W/2,grid.y0+grid.cp*C.ROWS+22);
   editorTf();drawDesign(design);
   if(drag&&drag.gx!=null){
     const p=Object.assign({},drag.piece,{x:drag.gx,y:drag.gy});
     // red rings on the wheels that block
-    if(!drag.ok&&p.t==='wheel'&&drag.msg==='Tekerler iç içe geçiyor'){design.pieces.forEach(q=>{if(q.t!=='wheel')return;const d=Math.hypot(q.x-p.x,q.y-p.y)*CELL;if(d<C.WHEEL_R[p.size]+C.WHEEL_R[q.size]-0.005){ctx.strokeStyle='#e2473a';ctx.lineWidth=0.012;ctx.beginPath();ctx.arc(q.x*CELL,q.y*CELL,C.WHEEL_R[q.size]+0.01,0,7);ctx.stroke();}});}
+    if(!drag.ok&&p.t==='wheel'&&drag.msg===tr('Tekerler iç içe geçiyor')){design.pieces.forEach(q=>{if(q.t!=='wheel')return;const d=Math.hypot(q.x-p.x,q.y-p.y)*CELL;if(d<C.WHEEL_R[p.size]+C.WHEEL_R[q.size]-0.005){ctx.strokeStyle='#e2473a';ctx.lineWidth=0.012;ctx.beginPath();ctx.arc(q.x*CELL,q.y*CELL,C.WHEEL_R[q.size]+0.01,0,7);ctx.stroke();}});}
     drawPiece(p,drag.inBoard?0.8:0.35);
     // outline
     ctx.strokeStyle=drag.inBoard?(drag.ok?'#2fae66':'#e2473a'):'#e2473a';ctx.lineWidth=0.012;
     if(p.t==='wheel'){ctx.beginPath();ctx.arc(p.x*CELL,p.y*CELL,C.WHEEL_R[p.size]+0.012,0,7);ctx.stroke();}
     else pieceCells(p).forEach(([x,y])=>ctx.strokeRect(x*CELL-CELL/2,y*CELL-CELL/2,CELL,CELL));
     ctx.setTransform(DPR,0,0,DPR,0,0);
-    const msg=!drag.inBoard?(drag.from==='board'?'Bırak: sil':''):(drag.ok?'':drag.msg);
+    const msg=!drag.inBoard?(drag.from==='board'?tr('Bırak: sil'):''):(drag.ok?'':drag.msg);
     if(msg){ctx.font='700 13px Barlow, sans-serif';const tw=ctx.measureText(msg).width+20;const [sx,sy]=[drag.sx,drag.sy-(drag.touch?70:36)];
       ctx.fillStyle='rgba(226,71,58,.95)';rr(sx-tw/2,sy-14,tw,26,13);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(msg,sx,sy+4);}
   }
@@ -305,14 +306,14 @@ cv.addEventListener('pointermove',e=>{
     const rest=design.pieces.filter((_,j)=>j!==press.i);design.pieces=rest;design.cells=compile(rest);
     drag={piece:p,from:'board',orig:p,grab:[press.fx-p.x,press.fy-p.y+(press.touch?48/grid.cp:0)],touch:press.touch};press=null;updateDrag(e.offsetX,e.offsetY);}});
 cv.addEventListener('pointerup',e=>{
-  if(press){const p=design.pieces[press.i];if(p.t==='wheel'){p.motor=!p.motor;flash={msg:p.motor?'Motorlu teker':'Serbest teker (motorsuz)',t:performance.now()};setPieces(design.pieces);}press=null;return;}
+  if(press){const p=design.pieces[press.i];if(p.t==='wheel'){p.motor=!p.motor;flash={msg:tr(p.motor?'Motorlu teker':'Serbest teker (motorsuz)'),t:performance.now()};setPieces(design.pieces);}press=null;return;}
   if(drag&&drag.from==='board')finishDrag();});
 cv.addEventListener('pointercancel',()=>{press=null;if(drag){if(drag.orig)design.pieces.push(drag.orig);setPieces(design.pieces);drag=null;}});
 function finishDrag(){const d=drag;drag=null;
   if(d.inBoard&&d.ok){const p=Object.assign({},d.piece,{x:d.gx,y:d.gy});design.pieces.push(p);if(p.t==='egg')design.pieces=design.pieces.filter(q=>q===p||q.t!=='egg');}
   else if(d.inBoard&&!d.ok&&d.orig){design.pieces.push(d.orig);flash={msg:d.msg,t:performance.now()};}
   else if(d.inBoard&&!d.ok){flash={msg:d.msg,t:performance.now()};}
-  else if(!d.inBoard&&d.from==='board'){flash={msg:'Parça silindi',t:performance.now()};}
+  else if(!d.inBoard&&d.from==='board'){flash={msg:tr('Parça silindi'),t:performance.now()};}
   // a beam removed can leave wheels floating: keep them, validity will explain
   setPieces(design.pieces);}
 
@@ -342,38 +343,38 @@ function renderPalette(){
   const P=$('palette');P.innerHTML='';
   CATALOG.forEach(it=>{if(it.id==='egg'&&!(level&&level.needEgg))return;if(it.id!=='egg'&&it.own!=='beam'&&!owned(it.own))return;
     const b=document.createElement('button');b.className='tool';b.type='button';
-    const cvs=document.createElement('canvas');b.appendChild(cvs);const sp=document.createElement('span');sp.textContent=it.name;b.appendChild(sp);
+    const cvs=document.createElement('canvas');b.appendChild(cvs);const sp=document.createElement('span');sp.textContent=tr(it.name);b.appendChild(sp);
     if(mode==='camp'&&it.id!=='egg'){const pc=it.make();const cst=pc.t==='beam'?pc.len*C.COST.beam:pc.t==='wheel'?C.COST.wheel[pc.size]+C.COST.motor:C.COST[pc.t]||0;const q=document.createElement('em');q.className='cost';q.textContent=cst;b.appendChild(q);}
-    const t=TOOLS.find(q=>q.id===it.own);if(t&&!t.start&&!t.egg&&!prog.seenNew[it.own]){const n=document.createElement('i');n.className='new';n.textContent='YENİ';b.appendChild(n);}
+    const t=TOOLS.find(q=>q.id===it.own);if(t&&!t.start&&!t.egg&&!prog.seenNew[it.own]){const n=document.createElement('i');n.className='new';n.textContent=tr('YENİ');b.appendChild(n);}
     let st=null;
     b.addEventListener('pointerdown',e=>{st={x:e.clientX,y:e.clientY,e};prog.seenNew[it.own]=1;save();});
     b.addEventListener('pointermove',e=>{if(!st||drag)return;const dx=e.clientX-st.x,dy=e.clientY-st.y;
       if((dy<-10&&Math.abs(dy)>Math.abs(dx))||(e.pointerType==='mouse'&&Math.hypot(dx,dy)>6)){try{b.releasePointerCapture(e.pointerId);}catch(_){}startPaletteDrag(it,e);st=null;}});
-    b.addEventListener('pointerup',()=>{if(st&&!drag){flash={msg:'Parçayı yukarı, tahtaya sürükle',t:performance.now()};}st=null;});
+    b.addEventListener('pointerup',()=>{if(st&&!drag){flash={msg:tr('Parçayı yukarı, tahtaya sürükle'),t:performance.now()};}st=null;});
     b.addEventListener('pointercancel',()=>{st=null;});
     P.appendChild(b);iconFor(it.id,cvs);});
 }
 
 function renderSettings(){
-  const sg=$('segGear');sg.innerHTML='';C.GEARS.forEach((g,i)=>{if(!gearOwned(i))return;const b=document.createElement('button');b.textContent=g.name;b.setAttribute('aria-pressed',design.gear===i?'true':'false');
+  const sg=$('segGear');sg.innerHTML='';C.GEARS.forEach((g,i)=>{if(!gearOwned(i))return;const b=document.createElement('button');b.textContent=tr(g.name);b.setAttribute('aria-pressed',design.gear===i?'true':'false');
     b.onclick=()=>{design.gear=i;saveDesign();refreshGarage();};sg.appendChild(b);});
   if(!gearOwned(design.gear))design.gear=1;
-  const ss=$('segSusp');ss.innerHTML='';[['hard','Sert'],['soft','Yumuşak']].forEach(([v,t])=>{if(v==='soft'&&!owned('soft'))return;const b=document.createElement('button');b.textContent=t;b.setAttribute('aria-pressed',(design.susp||'hard')===v?'true':'false');
+  const ss=$('segSusp');ss.innerHTML='';[['hard','Sert'],['soft','Yumuşak']].forEach(([v,t])=>{if(v==='soft'&&!owned('soft'))return;const b=document.createElement('button');b.textContent=tr(t);b.setAttribute('aria-pressed',(design.susp||'hard')===v?'true':'false');
     b.onclick=()=>{design.susp=v;saveDesign();refreshGarage();};ss.appendChild(b);});
   if(design.susp==='soft'&&!owned('soft'))design.susp='hard';
 }
 function validity(){const A=C.analyze(Object.assign({},design,{noMotorOk:!!(level&&level.motorOff)}));
-  if(!A.ok)return A.msg;if(level&&level.needEgg&&!A.eggs)return 'Bu testte yumurtayı araca yerleştirmelisin.';
+  if(!A.ok)return tr(A.msg);if(level&&level.needEgg&&!A.eggs)return tr('Bu testte yumurtayı araca yerleştirmelisin.');
   // locked parts in design (e.g. after reset)
-  for(const c of Object.values(design.cells)){if(!c)continue;if(c.base&&c.base!=='beam'&&!owned(c.base))return 'Tasarımda henüz açılmamış bir parça var.';
-    if(c.over&&c.over.t==='wheel'&&!owned('wheel'+c.over.size))return 'Tasarımda henüz açılmamış bir teker var.';if(c.over&&c.over.t==='bumper'&&!owned('bumper'))return 'Tasarımda henüz açılmamış bir parça var.';}
+  for(const c of Object.values(design.cells)){if(!c)continue;if(c.base&&c.base!=='beam'&&!owned(c.base))return tr('Tasarımda henüz açılmamış bir parça var.');
+    if(c.over&&c.over.t==='wheel'&&!owned('wheel'+c.over.size))return tr('Tasarımda henüz açılmamış bir teker var.');if(c.over&&c.over.t==='bumper'&&!owned('bumper'))return tr('Tasarımda henüz açılmamış bir parça var.');}
   return null;}
 function refreshGarage(){renderSettings();const v=validity();$('warn').hidden=!v;$('warn').textContent=v||'';$('btnGo').disabled=!!v;
   const A=C.analyze(Object.assign({},design,{noMotorOk:true}));const g=C.GEARS[design.gear].ratio;
   let vmax=0;Object.values(design.cells).forEach(c=>{if(c&&c.over&&c.over.t==='wheel'&&c.over.motor)vmax=Math.max(vmax,C.W_MOTOR/g*C.WHEEL_R[c.over.size]);});
-  let h='<span>Kütle <b>'+A.mass.toFixed(1).replace('.',',')+' kg</b></span><span>Motor <b>'+A.motors+'</b></span><span>Tepe hız <b>'+(level&&level.motorOff?'motor kapalı':vmax.toFixed(1).replace('.',',')+' m/s')+'</b></span>';
-  if(level&&level.goals){const cst=C.costOf(design);h+='<span>Maliyet <b'+(cst<=level.goals.cost?' style="color:var(--yellow)"':'')+'>'+cst+'</b> / ★ '+level.goals.cost+'</span>';}
-  if(lastTele)h+='<span style="flex-basis:100%">Son deneme: <b>'+lastTele+'</b></span>';
+  let h='<span>'+tr('Kütle')+' <b>'+A.mass.toFixed(1).replace('.',window.DECSEP||',')+' kg</b></span><span>'+tr('Motor')+' <b>'+A.motors+'</b></span><span>'+tr('Tepe hız')+' <b>'+(level&&level.motorOff?tr('motor kapalı'):vmax.toFixed(1).replace('.',window.DECSEP||',')+' m/s')+'</b></span>';
+  if(level&&level.goals){const cst=C.costOf(design);h+='<span>'+tr('Maliyet')+' <b'+(cst<=level.goals.cost?' style="color:var(--yellow)"':'')+'>'+cst+'</b> / ★ '+level.goals.cost+'</span>';}
+  if(lastTele)h+='<span style="flex-basis:100%">'+tr('Son deneme:')+' <b>'+lastTele+'</b></span>';
   $('tele').innerHTML=h;updateHintDot();}
 $('btnClear').onclick=()=>{setPieces([]);};
 
@@ -417,56 +418,62 @@ function decodeSol(e){const cells={};e.c.split(' ').forEach(tok=>{const m=tok.ma
   const out={};Object.entries(cells).forEach(([k,c])=>{const [x,y]=k.split(',').map(Number);out[(x+sh)+','+y]=c;});return {cells:out,gear:e.g,susp:e.s?'soft':'hard'};}
 function rungKey(){return mode==='camp'?campKey(ci):C.LADDERS[li].id+':'+ri;}
 function pickSolution(){const list=(SOLPACK&&SOLPACK[rungKey()])||[];for(const s of list)if(s.n.every(owned))return {sol:s};return {missing:list.length?list.reduce((a,s)=>s.n.filter(n=>!owned(n)).length<a.length?s.n.filter(n=>!owned(n)):a,list[0].n.filter(n=>!owned(n))):[]};}
-function whereUnlock(p){const cu=Object.keys(C.CAMPAIGN_UNLOCK).find(k=>C.CAMPAIGN_UNLOCK[k]===p);if(cu){const i=C.CAMPAIGN.findIndex(c=>c.id===cu);return 'Macera '+(i+1)+'. bölüm';}const k=Object.keys(UNLOCKS).find(k=>UNLOCKS[k]===p);if(!k)return '';const [id,r]=k.split(':');const L=C.LADDERS.find(l=>l.id===id);return L.name+' '+fmtRung(L,L.rungs[+r],+r);}
+function whereUnlock(p){const cu=Object.keys(C.CAMPAIGN_UNLOCK).find(k=>C.CAMPAIGN_UNLOCK[k]===p);if(cu){const i=C.CAMPAIGN.findIndex(c=>c.id===cu);return tr('Macera {0}. bölüm',i+1);}const k=Object.keys(UNLOCKS).find(k=>UNLOCKS[k]===p);if(!k)return '';const [id,r]=k.split(':');const L=C.LADDERS.find(l=>l.id===id);return tr(L.name)+' '+fmtRung(L,L.rungs[+r],+r);}
 function describe(d){const cells=d.cells;const xs=Object.keys(cells).map(k=>+k.split(',')[0]);const x0=Math.min(...xs),x1=Math.max(...xs);const span=(x1-x0+1)*10;
-  const wh={};let w=[];Object.entries(cells).forEach(([k,c])=>{if(c.over&&c.over.t==='wheel'){const key=(c.over.motor?'motorlu ':'serbest ')+['küçük','orta','büyük','dev'][c.over.size];wh[key]=(wh[key]||0)+1;}if(c.base==='weight')w.push(+k.split(',')[0]);});
-  const parts=[span+' cm uzunluğunda şasi'];Object.entries(wh).forEach(([k,n])=>parts.push(n+' '+k+' teker'));
-  if(w.length){const mid=(x0+x1)/2;const pos=w.map(x=>x<mid-1.5?'arkada':x>mid+1.5?'önde':'ortada');const u=[...new Set(pos)];parts.push(w.length+' ağırlık ('+u.join(', ')+')');}
-  const hn=Object.values(cells).filter(c=>c.base==='hinge').length;if(hn)parts.push(hn+' menteşe');
-  if(Object.values(cells).some(c=>c.over&&c.over.t==='bumper'))parts.push('tampon');
-  parts.push(C.GEARS[d.gear].name+' dişlisi');parts.push((d.susp==='soft'?'yumuşak':'sert')+' süspansiyon');
+  const wh={};let w=[];Object.entries(cells).forEach(([k,c])=>{if(c.over&&c.over.t==='wheel'){const key=(c.over.motor?'motorlu':'serbest')+'|'+['küçük','orta','büyük','dev'][c.over.size];wh[key]=(wh[key]||0)+1;}if(c.base==='weight')w.push(+k.split(',')[0]);});
+  const parts=[tr('{0} cm uzunluğunda şasi',span)];Object.entries(wh).forEach(([k,n])=>{const [m,sz]=k.split('|');parts.push(tr('{0} {1} {2} teker',n,tr(m),tr(sz)));});
+  if(w.length){const mid=(x0+x1)/2;const pos=w.map(x=>x<mid-1.5?'arkada':x>mid+1.5?'önde':'ortada');const u=[...new Set(pos)].map(q=>tr(q));parts.push(tr('{0} ağırlık ({1})',w.length,u.join(', ')));}
+  const hn=Object.values(cells).filter(c=>c.base==='hinge').length;if(hn)parts.push(tr('{0} menteşe',hn));
+  if(Object.values(cells).some(c=>c.over&&c.over.t==='bumper'))parts.push(tr('tampon'));
+  parts.push(tr('{0} dişlisi',tr(C.GEARS[d.gear].name)));parts.push(tr('{0} süspansiyon',tr(d.susp==='soft'?'yumuşak':'sert')));
   return parts.join(', ')+'.';}
-function hintTiers(){const f=(prog.fails||{})[rungKey()]||0;return TIER_AT.filter(n=>f>=n).length;}
+function hintTiers(){const k=rungKey();const f=(prog.fails||{})[k]||0;return Math.min(3,TIER_AT.filter(n=>f>=n).length+((prog.hintAd||{})[k]||0));}
 function updateHintDot(){const k=rungKey();const seen=(prog.hintSeen||{})[k]||0;$('hintDot').hidden=!(hintTiers()>seen);}
 function showHints(){
   const k=rungKey();const f=(prog.fails||{})[k]||0;const L=mode==='camp'?{}:C.LADDERS[li];prog.hintSeen=prog.hintSeen||{};prog.hintSeen[k]=hintTiers();save();updateHintDot();
-  const t1=mode==='camp'?CAMP_HINT[ci]:L.trap?TRAP_HINT[ri]:HINT1[L.id];const P=pickSolution();
-  const tier=(i,title,body)=>{const open=f>=TIER_AT[i];return '<div class="tier'+(open?'':' locked')+'"><b>'+title+'</b>'+(open?body:'<small>'+(TIER_AT[i]-f)+' başarısız deneme sonra açılır</small>')+'</div>';};
+  const t1=tr(mode==='camp'?CAMP_HINT[ci]:L.trap?TRAP_HINT[ri]:HINT1[L.id]);const P=pickSolution();
+  const nOpen=hintTiers();const ad=window.ADS&&!(prog.noAds);
+  const tier=(i,title,body)=>{const open=i<nOpen;return '<div class="tier'+(open?'':' locked')+'"><b>'+title+'</b>'+(open?body:'<small>'+tr('{0} başarısız deneme sonra açılır',Math.max(1,TIER_AT[i]-f))+'</small>'+(ad&&i===nOpen?'<button class="btn adbtn" id="hAd">'+tr('▶ Reklam izle, hemen aç')+'</button>':''))+'</div>';};
   let b2,b3;
-  if(P.sol){const d=decodeSol(P.sol.e);b2='<p>Bu testi geçen bir araç: '+describe(d)+'</p>';b3='<p>Doğrulanmış bir çözümü garaja yükleyebilirsin. Kendi tasarımın saklanır, istediğinde geri dönersin.</p><button class="btn primary" id="hLoad">Çözümü garaja yükle</button>';}
-  else{const m=P.missing.map(p=>'<b style="color:var(--bink);letter-spacing:0;font-family:Barlow">'+PART_NAME[p]+'</b> ('+whereUnlock(p)+')').join(', ');b2=b3='<p>Bu test için önce şu parçayı açman gerekiyor: '+m+'.</p>';}
-  let h='<h3>İpucu</h3>'+tier(0,'1 · YÖN',"<p>"+t1+"</p>")+tier(1,'2 · TASARIM',b2)+tier(2,'3 · ÇÖZÜM',b3);
-  if(prog.backup)h+='<button class="btn" id="hBack">Kendi tasarımıma dön</button>';
-  h+='<div class="btnrow"><button class="btn" id="hClose">Kapat</button></div>';
+  if(P.sol){const d=decodeSol(P.sol.e);b2='<p>'+tr('Bu testi geçen bir araç: {0}',describe(d))+'</p>';b3='<p>'+tr('Doğrulanmış bir çözümü garaja yükleyebilirsin. Kendi tasarımın saklanır, istediğinde geri dönersin.')+'</p><button class="btn primary" id="hLoad">'+tr('Çözümü garaja yükle')+'</button>';}
+  else{const m=P.missing.map(p=>'<b style="color:var(--bink);letter-spacing:0;font-family:Barlow">'+tr(PART_NAME[p])+'</b> ('+whereUnlock(p)+')').join(', ');b2=b3='<p>'+tr('Bu test için önce şu parçayı açman gerekiyor: {0}.',m)+'</p>';}
+  let h='<h3>'+tr('İpucu')+'</h3>'+tier(0,tr('1 · YÖN'),"<p>"+t1+"</p>")+tier(1,tr('2 · TASARIM'),b2)+tier(2,tr('3 · ÇÖZÜM'),b3);
+  if(prog.backup)h+='<button class="btn" id="hBack">'+tr('Kendi tasarımıma dön')+'</button>';
+  h+='<div class="btnrow"><button class="btn" id="hClose">'+tr('Kapat')+'</button></div>';
   $('card').innerHTML=h;$('modal').hidden=false;
   $('hClose').onclick=()=>{$('modal').hidden=true;};
+  const ha=$('hAd');if(ha)ha.onclick=async()=>{if(!ADS.rewardAvailable()){ha.textContent=tr('Reklam şu an hazır değil. Biraz sonra tekrar dene.');return;}ha.disabled=true;
+    const ok=await ADS.showReward();if(ok){prog.hintAd=prog.hintAd||{};prog.hintAd[k]=(prog.hintAd[k]||0)+1;save();}showHints();};
   const hl=$('hLoad');if(hl)hl.onclick=()=>{prog.backup=JSON.parse(JSON.stringify(design));design=decodeSol(P.sol.e);design.pieces=cellsToPieces(design.cells);saveDesign();$('modal').hidden=true;refreshGarage();};
   const hb=$('hBack');if(hb)hb.onclick=()=>{design=prog.backup;prog.backup=null;saveDesign();$('modal').hidden=true;refreshGarage();};
 }
 $('btnHint').onclick=showHints;
 
 // ---------- flow ----------
-const REASON={stuck:'TAKILDI',fall:'DÜŞTÜ',egg:'YUMURTA KIRILDI',time:'SÜRE DOLDU',stop:'DURDURULDU'};
+const REASON={stuck:'TAKILDI',fall:'DÜŞTÜ',egg:'YUMURTA KIRILDI',time:'SÜRE DOLDU',stop:'DURDURULDU'};const reasonTxt=r=>tr(REASON[r]||'OLMADI');
 function ladderOpen(id){const r=LADDER_REQ[id];return !r||isDone(r);}
 function nextRung(id){const L=C.LADDERS.find(l=>l.id===id);for(let i=0;i<L.rungs.length;i++)if(!isDone(id+':'+i))return i;return L.rungs.length-1;}
-function fmtRung(L,v,j){if(L.trap)return isDone('trap:'+(v-1))?C.TRAPS[v-1].name:'?';return L.unit==='m'?String(v).replace('.',',')+' m':L.unit==='°'?v+'°':v+' cm';}
+function fmtRung(L,v,j){if(L.trap)return isDone('trap:'+(v-1))?tr(C.TRAPS[v-1].name):'?';return L.unit==='m'?String(v).replace('.',window.DECSEP||',')+' m':L.unit==='°'?v+'°':v+' cm';}
 function showMap(){
   phase='map';closeGarage();$('hud').hidden=true;$('timer').hidden=true;$('btnStop').hidden=true;$('modal').hidden=true;$('intro').hidden=true;
   const M=$('map');const N=C.CAMPAIGN.length;let tot=0;for(let i=0;i<N;i++)tot+=starsOf(i);
   let nx=0;while(nx<N-1&&isDone(campKey(nx)))nx++;if(isDone(campKey(nx))){const k=[...Array(N).keys()].find(i=>starsOf(i)<3);if(k!=null)nx=k;}
-  let h='<h1>'+(window.APP_NAME||'Tork Garajı')+'</h1><p class="sub">Aracını kur, parkurda dene, geliştir. Her bölümde bir sürpriz var.</p>';
-  h+='<div class="sect"><b>MACERA</b><span>'+tot+' / '+(N*3)+' ★</span></div>';
-  h+='<button class="cont" id="mCont"><small>'+(isDone(campKey(nx))?'Tekrar oyna':'Sıradaki bölüm')+'</small><b>'+(nx+1)+'. '+C.CAMPAIGN[nx].name+'</b><span>▶</span></button>';
+  let h='<h1>'+(window.APP_NAME||'Tork Garajı')+'</h1><p class="sub">'+tr('Aracını kur, parkurda dene, geliştir. Her bölümde bir sürpriz var.')+'</p>';
+  h+='<div class="sect"><b>'+tr('MACERA')+'</b><span>'+tot+' / '+(N*3)+' ★</span></div>';
+  h+='<button class="cont" id="mCont"><small>'+tr(isDone(campKey(nx))?'Tekrar oyna':'Sıradaki bölüm')+'</small><b>'+(nx+1)+'. '+tr(C.CAMPAIGN[nx].name)+'</b><span>▶</span></button>';
   h+='<div class="camp">';
   C.CAMPAIGN.forEach((c,i)=>{const open=campOpen(i),d=isDone(campKey(i)),st=starsOf(i);
-    h+='<button class="lv'+(d?' done':'')+(i===nx&&!d?' next':'')+'" data-c="'+i+'"'+(open?'':' disabled')+' aria-label="'+(i+1)+'. '+c.name+'"><b>'+(open?i+1:'🔒')+'</b><span>'+(d?'★'.repeat(st)+'<i>'+'★'.repeat(3-st)+'</i>':'&nbsp;')+'</span></button>';});
+    h+='<button class="lv'+(d?' done':'')+(i===nx&&!d?' next':'')+'" data-c="'+i+'"'+(open?'':' disabled')+' aria-label="'+(i+1)+'. '+tr(c.name)+'"><b>'+(open?i+1:'🔒')+'</b><span>'+(d?'★'.repeat(st)+'<i>'+'★'.repeat(3-st)+'</i>':'&nbsp;')+'</span></button>';});
   h+='</div>';
-  h+='<div class="sect"><b>ANTRENMAN</b><span>Tek engelli testler</span></div>';
+  h+='<div class="sect"><b>'+tr('ANTRENMAN')+'</b><span>'+tr('Tek engelli testler')+'</span></div>';
   C.LADDERS.forEach((L,i)=>{const open=ladderOpen(L.id);const nd=L.rungs.filter((_,j)=>isDone(L.id+':'+j)).length;
-    h+='<button class="ladder" data-l="'+i+'"'+(open?'':' disabled')+'><div class="lhead"><b>'+L.name+'</b><span>'+(open?nd+' / '+L.rungs.length:'🔒 '+LADDER_REQ_TXT[L.id])+'</span></div><div class="rungs">';
+    h+='<button class="ladder" data-l="'+i+'"'+(open?'':' disabled')+'><div class="lhead"><b>'+tr(L.name)+'</b><span>'+(open?nd+' / '+L.rungs.length:'🔒 '+tr(LADDER_REQ_TXT[L.id]))+'</span></div><div class="rungs">';
     const nr=nextRung(L.id);L.rungs.forEach((v,j)=>{const d=isDone(L.id+':'+j);h+='<div class="rung'+(d?' done':(open&&j===nr?' next':''))+'"'+(L.trap?' style="font-size:10px;text-align:center;line-height:1.1;padding:0 2px"':'')+'>'+fmtRung(L,v)+'</div>';});
     h+='</div></button>';});
+  h+='<div class="mfoot"><span>'+tr('Dil')+'</span><div class="seg lang"><button data-lang="tr" aria-pressed="'+(window.LANG==='tr')+'">Türkçe</button><button data-lang="en" aria-pressed="'+(window.LANG==='en')+'">English</button></div>'+(window.ADS&&ADS.privacyRequired?'<button class="linkbtn" id="mPriv">'+tr('Gizlilik ayarları')+'</button>':'')+'</div>';
   M.innerHTML=h;M.hidden=false;
+  M.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{if(b.dataset.lang!==window.LANG)window.setLang(b.dataset.lang);});
+  if($('mPriv'))$('mPriv').onclick=()=>ADS.showPrivacy();
   $('mCont').onclick=()=>startCamp(nx,false);
   M.querySelectorAll('.lv').forEach(b=>b.onclick=()=>startCamp(+b.dataset.c,false));
   M.querySelectorAll('.ladder').forEach(b=>b.onclick=()=>{const i=+b.dataset.l;startRung(i,nextRung(C.LADDERS[i].id),false);});
@@ -476,23 +483,23 @@ $('btnMap').onclick=()=>{if(phase==='run')return;showMap();};
 function startRung(i,j,run){
   mode='ladder';li=i;ri=j;level=C.levelFor(i,j);flagVis=level.geo.flagX||0;tries=0;lastTele=null;prevSim=null;parts=[];
   $('map').hidden=true;$('modal').hidden=true;$('hud').hidden=false;$('banner').hidden=true;
-  $('hName').textContent=level.name;$('hTries').textContent='Deneme 0';
+  level.name=C.LADDERS[i].trap?tr('Tuzak {0}',j+1):tr(C.LADDERS[i].name)+' '+fmtRung(C.LADDERS[i],C.LADDERS[i].rungs[j]);$('hName').textContent=level.name;$('hTries').textContent=tr('Deneme {0}',0);
   closeGarage();previewSim();
   phase='intro';phaseT=0;autoRun=run;
-  $('introN').textContent=C.LADDERS[i].name+' · '+(j+1)+'. basamak';$('introG').innerHTML='';$('introT').textContent=C.LADDERS[i].trap?(isDone('trap:'+j)?C.TRAPS[j].name:'Tuzak '+(j+1)):fmtRung(C.LADDERS[i],C.LADDERS[i].rungs[j]);$('intro').hidden=false;
+  $('introN').textContent=tr('{0} · {1}. basamak',tr(C.LADDERS[i].name),j+1);$('introG').innerHTML='';$('introT').textContent=C.LADDERS[i].trap?(isDone('trap:'+j)?tr(C.TRAPS[j].name):tr('Tuzak {0}',j+1)):fmtRung(C.LADDERS[i],C.LADDERS[i].rungs[j]);$('intro').hidden=false;
   cam.x=endX()+0.5;cam.y=groundAt(endX())+0.5;cam.s=scaleRun();cam.ay=.55;
 }
 function previewSim(){let d=design;if(validity()){const dd=defaultDesign();d={cells:compile(dd.pieces),gear:1,susp:'hard'};}sim=C.createSim(pl,level,d);if(sim)sim._cells=d.cells;}
-function goalsHtml(g,res){if(!g)return '';const t='<span class="g on">★ Bitir</span>';
+function goalsHtml(g,res){if(!g)return '';const t='<span class="g on">'+tr('★ Bitir')+'</span>';
   const a=res?res.t<=g.time:null,b=res?res.cost<=g.cost:null;const cls=v=>v==null?'g':v?'g on':'g off';
-  return t+'<span class="'+cls(a)+'">★ '+fmtN(g.time)+' sn'+(res?' <small>('+fmtN(res.t,1)+')</small>':'')+'</span><span class="'+cls(b)+'">★ maliyet '+g.cost+(res?' <small>('+res.cost+')</small>':'')+'</span>';}
+  return t+'<span class="'+cls(a)+'">'+tr('★ {0} sn',fmtN(g.time))+(res?' <small>('+fmtN(res.t,1)+')</small>':'')+'</span><span class="'+cls(b)+'">'+tr('★ maliyet {0}',g.cost)+(res?' <small>('+res.cost+')</small>':'')+'</span>';}
 function startCamp(i,run){
   mode='camp';ci=i;const c=C.CAMPAIGN[i];level=C.campaignLevel(i);flagVis=level.geo.flagX||0;tries=0;lastTele=null;prevSim=null;parts=[];
   $('map').hidden=true;$('modal').hidden=true;$('hud').hidden=false;$('banner').hidden=true;
-  $('hName').textContent=(i+1)+'. '+c.name;$('hTries').textContent='Deneme 0';
+  $('hName').textContent=(i+1)+'. '+tr(c.name);$('hTries').textContent=tr('Deneme {0}',0);
   closeGarage();previewSim();
   phase='intro';phaseT=0;autoRun=run;
-  $('introN').textContent='Macera · '+(i+1)+'. bölüm';$('introT').textContent=c.name;$('introG').innerHTML=goalsHtml(level.goals);$('intro').hidden=false;
+  $('introN').textContent=tr('Macera · {0}. bölüm',i+1);$('introT').textContent=tr(c.name);$('introG').innerHTML=goalsHtml(level.goals);$('intro').hidden=false;
   cam.x=endX()+0.5;cam.y=groundAt(endX())+0.5;cam.s=scaleRun();cam.ay=.55;
 }
 function openGarage(){phase='garage';$('garage').classList.remove('closed');$('btnStop').hidden=true;$('timer').hidden=true;$('intro').hidden=true;renderPalette();refreshGarage();
@@ -501,7 +508,7 @@ function closeGarage(){$('garage').classList.add('closed');}
 function beginRun(){
   if(phase!=='garage'&&phase!=='intro')return;
   if(validity()){openGarage();return;}
-  tries++;$('hTries').textContent='Deneme '+tries;closeGarage();
+  tries++;$('hTries').textContent=tr('Deneme {0}',tries);closeGarage();
   const d=JSON.parse(JSON.stringify(design));sim=C.createSim(pl,level,d);sim._cells=d.cells;sim._x0=sim.centroid().x;parts=[];flagVis=level.geo.flagX||0;
   phase='run';phaseT=0;$('btnStop').hidden=false;$('timer').hidden=false;$('intro').hidden=true;
 }
@@ -510,35 +517,37 @@ $('btnStop').onclick=()=>{if(phase==='run'){sim.status='fail';sim.reason='stop';
 
 function teleText(S){const lg=level.geo;const goal=lg.flagX!=null?lg.flagX:lg.wallX;const start=S._x0??0;
   const prog=Math.max(0,Math.min(1,(S.best-start)/(goal-start)));
-  let t=Math.round(prog*100)+'% yol · tepe hız '+S.topSpeed.toFixed(1).replace('.',',')+' m/s';
-  if(level.egg)t+=' · en sert darbe '+(S.peakG/10).toFixed(1).replace('.',',')+' g (sınır '+(level.egg/10).toFixed(0)+' g)';
-  const br=S.wheels.filter(w=>w.broken).length;if(br)t+=' · '+br+' teker koptu';return t;}
+  let t=tr('{0}% yol · tepe hız {1} m/s',Math.round(prog*100),S.topSpeed.toFixed(1).replace('.',window.DECSEP||','));
+  if(level.egg)t+=tr(' · en sert darbe {0} g (sınır {1} g)',(S.peakG/10).toFixed(1).replace('.',window.DECSEP||','),(level.egg/10).toFixed(0));
+  const br=S.wheels.filter(w=>w.broken).length;if(br)t+=tr(' · {0} teker koptu',br);return t;}
 function onFail(){
   {const k=rungKey();prog.fails=prog.fails||{};prog.fails[k]=(prog.fails[k]||0)+1;save();}
   phase='fail';phaseT=0;$('btnStop').hidden=true;lastTele=teleText(sim);
   if(sim.reason==='egg'&&sim.eggComp){const p=sim.eggComp.body.getWorldPoint(sim.eggLocal);for(let k=0;k<24;k++)parts.push({x:p.x,y:p.y,vx:(Math.random()-.5)*3,vy:Math.random()*3,life:1,type:'yolk',r:0.018});shake=10;}
-  const b=$('banner');b.className='banner';b.textContent=REASON[sim.reason]||'OLMADI';b.hidden=false;
+  const b=$('banner');b.className='banner';b.textContent=reasonTxt(sim.reason);b.hidden=false;
   setTimeout(()=>{if(phase!=='fail')return;b.hidden=true;startReplay();},1100);
 }
 function startReplay(){
   const n=sim.frames.length;const from=Math.max(0,n-110);if(n-from<30){endReplay();return;}
   replay={i:from,end:n,speed:0.4};phase='replay';$('replayTag').hidden=false;$('timer').hidden=true;
 }
-function endReplay(){if(phase!=='replay')return;replay=null;$('replayTag').hidden=true;prevSim=sim;openGarage();}
+function endReplay(){if(phase!=='replay')return;replay=null;$('replayTag').hidden=true;prevSim=sim;openGarage();if(((prog.fails||{})[rungKey()]||0)%8===0)adBreak();}
+function campDone(){return C.CAMPAIGN.filter((c,i)=>isDone(campKey(i))).length;}
+function adBreak(){if(window.ADS&&!prog.noAds)ADS.maybeInterstitial(campDone());}
 function onWin(){
   if(mode==='camp')return onWinCamp();
   phase='win';$('btnStop').hidden=true;const key=C.LADDERS[li].id+':'+ri;const first=!isDone(key);prog.done[key]=true;save();
-  const b=$('banner');b.className='banner win';b.textContent='GEÇTİ!';b.hidden=false;
+  const b=$('banner');b.className='banner win';b.textContent=tr('GEÇTİ!');b.hidden=false;
   const p=sim.centroid();for(let k=0;k<40;k++)parts.push({x:p.x,y:p.y+0.8,vx:(Math.random()-.5)*4,vy:Math.random()*4,life:1.4,type:'confetti',r:0.02,c:['#f2c014','#e0561b','#1d5aa6','#2fae66'][k%4]});
   const L=C.LADDERS[li];const last=ri===L.rungs.length-1;const un=first&&UNLOCKS[key];
   const opened=first?Object.entries(LADDER_REQ).filter(([id,r])=>r===key).map(([id])=>C.LADDERS.find(l=>l.id===id).name):[];
   setTimeout(()=>{b.hidden=true;
-    let h='<h3>'+level.name+' geçildi</h3><p>'+tries+'. denemede, '+sim.t.toFixed(1).replace('.',',')+' saniyede.</p>';
-    if(un){const it=TOOLS.find(t=>t.id===un)||EXTRA[un];h+='<div class="unlock"><canvas id="unc"></canvas><div><b>YENİ PARÇA: '+it.name+'</b><span>'+it.desc+'</span></div></div>';}
-    opened.forEach(n=>{h+='<div class="unlock"><div><b>YENİ TEST: '+n+'</b><span>Haritada açıldı.</span></div></div>';});
-    h+='<div class="btnrow">'+(last?'':'<button class="btn primary" id="mNext">Sıradaki: '+fmtRung(L,L.rungs[ri+1])+' ▶</button>')+'</div><div class="btnrow"><button class="btn" id="mGarage">Garaja dön</button><button class="btn" id="mMap">Harita</button></div>';
+    let h='<h3>'+tr('{0} geçildi',level.name)+'</h3><p>'+tr('{0}. denemede, {1} saniyede.',tries,sim.t.toFixed(1).replace('.',window.DECSEP||','))+'</p>';
+    if(un){const it=TOOLS.find(t=>t.id===un)||EXTRA[un];h+='<div class="unlock"><canvas id="unc"></canvas><div><b>'+tr('YENİ PARÇA: {0}',tr(it.name))+'</b><span>'+tr(it.desc)+'</span></div></div>';}
+    opened.forEach(n=>{h+='<div class="unlock"><div><b>'+tr('YENİ TEST: {0}',tr(n))+'</b><span>'+tr('Haritada açıldı.')+'</span></div></div>';});
+    h+='<div class="btnrow">'+(last?'':'<button class="btn primary" id="mNext">'+tr('Sıradaki: {0} ▶',fmtRung(L,L.rungs[ri+1]))+'</button>')+'</div><div class="btnrow"><button class="btn" id="mGarage">'+tr('Garaja dön')+'</button><button class="btn" id="mMap">'+tr('Harita')+'</button></div>';
     $('card').innerHTML=h;$('modal').hidden=false;if(un)iconFor(un,$('unc'));
-    if(!last)$('mNext').onclick=()=>startRung(li,ri+1,true);
+    if(!last)$('mNext').onclick=()=>{adBreak();startRung(li,ri+1,true);};
     $('mGarage').onclick=()=>{$('modal').hidden=true;prevSim=sim;lastTele=teleText(sim);openGarage();};
     $('mMap').onclick=showMap;
   },1300);
@@ -548,18 +557,18 @@ function onWinCamp(){
   phase='win';$('btnStop').hidden=true;const c=C.CAMPAIGN[ci];const key=campKey(ci);const first=!isDone(key);prog.done[key]=true;
   const g=level.goals||{time:1e9,cost:1e9};const mask=1|(sim.t<=g.time?2:0)|(sim.cost<=g.cost?4:0);prog.stars=prog.stars||{};const before=prog.stars[c.id]||0;prog.stars[c.id]=before|mask;save();
   const n=(mask&1)+((mask>>1)&1)+((mask>>2)&1);
-  const b=$('banner');b.className='banner win';b.textContent='GEÇTİ!';b.hidden=false;
+  const b=$('banner');b.className='banner win';b.textContent=tr('GEÇTİ!');b.hidden=false;
   const p=sim.centroid();for(let k=0;k<40+n*20;k++)parts.push({x:p.x,y:p.y+0.8,vx:(Math.random()-.5)*4,vy:Math.random()*4,life:1.4,type:'confetti',r:0.02,c:['#f2c014','#e0561b','#1d5aa6','#2fae66'][k%4]});
   const un=first&&C.CAMPAIGN_UNLOCK[c.id];const last=ci===C.CAMPAIGN.length-1;
   setTimeout(()=>{b.hidden=true;
-    let h='<h3>'+c.name+'</h3><div class="stars">'+[0,1,2].map(k=>'<i class="'+(k<n?'on':'')+'" style="animation-delay:'+(0.15+k*0.25)+'s">★</i>').join('')+'</div>';
+    let h='<h3>'+tr(c.name)+'</h3><div class="stars">'+[0,1,2].map(k=>'<i class="'+(k<n?'on':'')+'" style="animation-delay:'+(0.15+k*0.25)+'s">★</i>').join('')+'</div>';
     h+='<div class="goals">'+goalsHtml(level.goals,{t:sim.t,cost:sim.cost})+'</div>';
-    h+='<p>'+tries+'. denemede geçtin.'+(n<3?(mask&2?'':' Daha hızlı bir araç süre yıldızını getirir.')+(mask&4?'':' Daha az parça maliyet yıldızını getirir.'):' Kusursuz!')+'</p>';
-    if(un){const it=TOOLS.find(t=>t.id===un)||EXTRA[un];h+='<div class="unlock"><canvas id="unc"></canvas><div><b>YENİ PARÇA: '+it.name+'</b><span>'+it.desc+'</span></div></div>';}
-    if(last&&first)h+='<div class="unlock"><div><b>MACERA TAMAM!</b><span>Tüm bölümleri geçtin. Eksik yıldızların peşine düşebilirsin.</span></div></div>';
-    h+='<div class="btnrow">'+(last?'':'<button class="btn primary" id="mNext">Sıradaki bölüm ▶</button>')+'</div><div class="btnrow"><button class="btn" id="mGarage">Yıldız için tekrar</button><button class="btn" id="mMap">Harita</button></div>';
+    h+='<p>'+tr('{0}. denemede geçtin.',tries)+(n<3?(mask&2?'':tr(' Daha hızlı bir araç süre yıldızını getirir.'))+(mask&4?'':tr(' Daha az parça maliyet yıldızını getirir.')):tr(' Kusursuz!'))+'</p>';
+    if(un){const it=TOOLS.find(t=>t.id===un)||EXTRA[un];h+='<div class="unlock"><canvas id="unc"></canvas><div><b>'+tr('YENİ PARÇA: {0}',tr(it.name))+'</b><span>'+tr(it.desc)+'</span></div></div>';}
+    if(last&&first)h+='<div class="unlock"><div><b>'+tr('MACERA TAMAM!')+'</b><span>'+tr('Tüm bölümleri geçtin. Eksik yıldızların peşine düşebilirsin.')+'</span></div></div>';
+    h+='<div class="btnrow">'+(last?'':'<button class="btn primary" id="mNext">'+tr('Sıradaki bölüm ▶')+'</button>')+'</div><div class="btnrow"><button class="btn" id="mGarage">'+tr('Yıldız için tekrar')+'</button><button class="btn" id="mMap">'+tr('Harita')+'</button></div>';
     $('card').innerHTML=h;$('modal').hidden=false;if(un)iconFor(un,$('unc'));
-    if(!last)$('mNext').onclick=()=>startCamp(ci+1,false);
+    if(!last)$('mNext').onclick=()=>{adBreak();startCamp(ci+1,false);};
     $('mGarage').onclick=()=>{$('modal').hidden=true;prevSim=sim;lastTele=teleText(sim);openGarage();};
     $('mMap').onclick=showMap;
   },1300);
@@ -583,7 +592,7 @@ function frame(now){
   if(phase==='run'){acc+=dt;S._ev=S._ev||0;
     while(acc>=C.DT&&phase==='run'){S.step();acc-=C.DT;effects(S);
       if(S.status==='win')onWin();else if(S.status==='fail')onFail();}
-    $('timer').innerHTML=S.t.toFixed(1).replace('.',',')+' <small>/ '+level.time+' s'+(level.goals?(S.t<=level.goals.time?' · <span style="color:#b98f06">★ '+fmtN(level.goals.time)+'</span>':' · ★ '+fmtN(level.goals.time)):'')+'</small>';stepIdx=S.frames.length-1;
+    $('timer').innerHTML=S.t.toFixed(1).replace('.',window.DECSEP||',')+' <small>/ '+level.time+' s'+(level.goals?(S.t<=level.goals.time?' · <span style="color:#b98f06">★ '+fmtN(level.goals.time)+'</span>':' · ★ '+fmtN(level.goals.time)):'')+'</small>';stepIdx=S.frames.length-1;
   }else if(phase==='fail'||phase==='win'){acc+=dt;while(acc>=C.DT){S.world.step(C.DT,8,3);acc-=C.DT;}}
   else acc=0;
   // camera
@@ -608,5 +617,7 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 window.__pg={get phase(){return phase},get sim(){return sim},get level(){return level},beginRun,startRung,startCamp,showMap,design:()=>design,setDesign:d=>{design=d;design.pieces=d.pieces||cellsToPieces(d.cells);design.cells=compile(design.pieces);saveDesign();}};
+[['btnClear','Temizle'],['btnGo','TEST ET'],['btnStop','■ Durdur'],['replayTag','YAVAŞ ÇEKİM · GEÇMEK İÇİN DOKUN']].forEach(([id,s])=>{$(id).textContent=tr(s);});
+$('btnHint').firstChild.textContent=tr('İpucu');document.querySelectorAll('.set').forEach((el,i)=>{el.firstChild.textContent=tr(i?'Süspansiyon':'Dişli')+' ';});
 showMap();requestAnimationFrame(frame);
 })();

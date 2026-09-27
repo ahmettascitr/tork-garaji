@@ -12,14 +12,17 @@ function fontCss(inline){let css='';const files=[];
     css+=`@font-face{font-family:'${fam}';font-style:normal;font-weight:${w};font-display:swap;src:url(${url}) format('woff2');unicode-range:${RANGES[sub]};}\n`;})));
   return {css,files};}
 const rd=f=>fs.readFileSync(path.join(root,'src',f),'utf8');
-let html=rd('index.html').split('{{APP_NAME}}').join(cfg.appName);
+const T='ca-app-pub-3940256099942544';const ad=Object.assign({appId:T+'~3347511713',rewarded:T+'/5224354917',interstitial:T+'/1033173712'},cfg.admob||{});
+let html=rd('index.html').split('{{APP_NAME_EN}}').join(cfg.appNameEn||cfg.appName).split('{{APP_NAME}}').join(cfg.appName)
+  .split('{{ADS_CFG}}').join(JSON.stringify({appId:ad.appId,rewarded:ad.rewarded,interstitial:ad.interstitial}));
 const planck=fs.readFileSync(nm('planck/dist/planck.min.js'),'utf8').split('//# sourceMappingURL')[0];
 if(single){
   const {css}=fontCss(true);
   const inl=(tag,body)=>html=html.replace(tag,()=>'<script>\n'+body.replace(/<\/script/g,'<\\/script')+'\n</script>');
   html=html.replace('<link rel="stylesheet" href="fonts.css">',()=>'<style>\n'+css+'</style>');
   inl('<script src="planck.min.js"></script>',planck);
-  ['core.js','solpack.js','game.js','native.js'].forEach(f=>inl(`<script src="${f}"></script>`,rd(f)));
+  inl('<script src="i18n.js"></script>',rd('i18n.js'));
+  ['core.js','solpack.js','ads.js','game.js','native.js'].forEach(f=>inl(`<script src="${f}"></script>`,rd(f)));
   fs.mkdirSync(path.join(root,'dist'),{recursive:true});fs.writeFileSync(path.join(root,'dist/preview.html'),html);
   console.log('dist/preview.html',(html.length/1024).toFixed(0)+' KB');
 }else{
@@ -27,6 +30,6 @@ if(single){
   const {css,files}=fontCss(false);files.forEach(([s,f])=>fs.copyFileSync(s,path.join(out,'fonts',f)));
   fs.writeFileSync(path.join(out,'fonts.css'),css);fs.writeFileSync(path.join(out,'index.html'),html);
   fs.writeFileSync(path.join(out,'planck.min.js'),planck);
-  ['core.js','solpack.js','game.js','native.js'].forEach(f=>fs.copyFileSync(path.join(root,'src',f),path.join(out,f)));
+  ['i18n.js','core.js','solpack.js','ads.js','game.js','native.js'].forEach(f=>fs.copyFileSync(path.join(root,'src',f),path.join(out,f)));
   console.log('www/ hazır');
 }

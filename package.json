@@ -13,9 +13,10 @@
     "android:init": "npm run build:web && npx cap add android && node scripts/patch-android.js"
   },
   "dependencies": {
+    "@capacitor-community/admob": "8.1.0",
     "@capacitor/android": "8.5.2",
-    "@capacitor/core": "8.5.2",
     "@capacitor/app": "8.1.1",
+    "@capacitor/core": "8.5.2",
     "@capacitor/status-bar": "8.0.3",
     "@fontsource/barlow": "5.3.0",
     "@fontsource/chakra-petch": "5.3.0",

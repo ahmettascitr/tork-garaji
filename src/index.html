@@ -117,6 +117,11 @@ button:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
 .lv span i{font-style:normal;color:#4a5158}
 .lv.next{box-shadow:inset 0 0 0 2px var(--yellow)}
 .lv:disabled{opacity:.4}
+.tier .adbtn{margin-top:4px;background:#2a2410;border-color:#5c4a0c;color:var(--yellow);font-weight:700;white-space:normal}
+.mfoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;color:var(--muted);font:600 13px Barlow,sans-serif}
+.mfoot .seg{background:var(--bench)}
+.mfoot .seg button{color:var(--bink);min-height:40px;padding:6px 12px}
+.linkbtn{border:0;background:none;color:var(--muted);text-decoration:underline;font:600 13px Barlow,sans-serif;min-height:40px;margin-left:auto}
 .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 16px "Chakra Petch",sans-serif;color:var(--muted)}
 @media (prefers-reduced-motion: reduce){.garage{transition:none}.banner{animation:none}}
 </style>
@@ -154,10 +159,12 @@ button:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
   <div class="map" id="map" hidden></div>
   <div class="modal" id="modal" hidden><div class="card" id="card"></div></div>
 </div>
-<script>window.APP_NAME="{{APP_NAME}}";</script>
+<script src="i18n.js"></script>
+<script>window.APP_NAME=window.LANG==="tr"?"{{APP_NAME}}":"{{APP_NAME_EN}}";document.title=window.APP_NAME;window.ADS_CFG={{ADS_CFG}};</script>
 <script src="planck.min.js"></script>
 <script src="core.js"></script>
 <script src="solpack.js"></script>
+<script src="ads.js"></script>
 <script src="game.js"></script>
 <script src="native.js"></script>
 </body>

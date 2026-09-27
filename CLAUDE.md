@@ -13,7 +13,9 @@ Bu depo, Lego/Technic tarzı araç inşa etme oyunudur. Oyuncu ızgaralı bir ga
 | `src/index.html` | Sayfa iskeleti ve CSS. `{{APP_NAME}}` derlemede doldurulur. |
 | `src/solpack.js` | Her bölüm için doğrulanmış çözümler. **Elle düzenleme**, `npm run solutions` üretir. İpucu sekmesi buradan beslenir. |
 | `src/native.js` | Android geri tuşu, durum çubuğu. |
-| `app.config.json` | Uygulama adı, paket kimliği, sürüm adı. |
+| `src/i18n.js` | Dil: Türkçe kaynak metin → İngilizce çeviri sözlüğü (`EN`). Kodda metinler `tr('Türkçe metin {0}', değer)` ile yazılır. |
+| `src/ads.js` | Reklamlar (AdMob): ödüllü reklam, seyrek geçiş reklamı, Avrupa izin ekranı. Tarayıcıda taklit eder. |
+| `app.config.json` | Uygulama adı (Türkçe `appName`, İngilizce `appNameEn`), paket kimliği, sürüm adı, AdMob kimlikleri (`admob`). |
 | `tools/` | Çözüm arama araçları (rastgele arama, tepe tırmanma, elle tasarımlar). |
 | `test/solvable.test.js` | Güvenlik kapısı: her bölümün kayıtlı bir çözümü gerçekten geçmeli. |
 
@@ -26,12 +28,12 @@ Bu depo, Lego/Technic tarzı araç inşa etme oyunudur. Oyuncu ızgaralı bir ga
    - Macera yıldız hedefleri (`goals:{time,cost}`) bulunan en iyi çözümlerden gelir: `npm run solutions` sonrası `tools/data/camp_goals.json` içindeki en iyi süre ×1,3 ve en düşük maliyet +%15 civarı. Test, her hedefe kayıtlı bir çözümle ulaşılabildiğini kontrol eder.
    - Zorluk eğrisi: 1. bölümü başlangıç aracı geçmeli; 2–4 rastgele araçların yaklaşık %10–25'i, 5–8 %3–10'u, 9–14 %1–5'i geçmeli; 15 en az bir çözüm.
 3. Yeni bölüm eklerken: önce çözülebilir olduğunu araçlarla kanıtla, sonra ekle.
-4. Oyun internetsiz çalışmalı. Dış CDN, dış font, analiz aracı, reklam SDK'sı ekleme.
-5. Arayüz metinleri Türkçe, kısa ve sade. İpucu metinleri çözümü doğrudan söylemez; kademeli yönlendirir.
+4. Oyun internetsiz de oynanabilmeli. Dış CDN, dış font, analiz aracı ekleme. Tek reklam altyapısı AdMob'dur (`src/ads.js`); başka reklam SDK'sı ekleme. Reklam kuralları: ödüllü reklam sadece oyuncu isteyince; geçiş reklamı en az 4 dakika arayla, 3. macera bölümünden sonra, asla yarış sırasında. Reklam sıklığını artırma isteği gelirse bu sınırları sahibine sor.
+5. Arayüz iki dilli: Türkçe (kaynak) ve İngilizce. Her yeni ya da değişen metni `tr()` ile yaz ve İngilizcesini `src/i18n.js` içindeki `EN` sözlüğüne ekle; eksik çeviri bırakma. Metinler kısa ve sade. İpucu metinleri çözümü doğrudan söylemez; kademeli yönlendirir.
 6. Telefon dikey ekranı önceliklidir (yaklaşık 360–430 px genişlik). Dokunmatik hedefler en az 40 px.
-7. `localStorage` anahtarı `paletGaraji3`. Yapısını değiştirirsen eski kayıtları dönüştür; oyuncunun ilerlemesi kaybolmasın.
+7. `localStorage` anahtarı `paletGaraji3` (dil seçimi ayrıca `tgLang`). Yapısını değiştirirsen eski kayıtları dönüştür; oyuncunun ilerlemesi kaybolmasın.
 8. `android/` klasöründe yalnızca gerçekten gerekiyorsa değişiklik yap. Ad, paket kimliği ve sürüm `app.config.json` + `scripts/patch-android.js` üzerinden yönetilir.
-9. Uygulama adını değiştirme isteği gelirse sadece `app.config.json` içindeki `appName` alanını değiştir. `appId` (paket kimliği) Play'e ilk yüklemeden sonra değiştirilemez; asla değiştirme.
+9. Uygulama adını değiştirme isteği gelirse sadece `app.config.json` içindeki `appName` (Türkçe) ve/veya `appNameEn` (İngilizce) alanını değiştir. `appId` (paket kimliği) Play'e ilk yüklemeden sonra değiştirilemez; asla değiştirme.
 10. Git commit yapma, iş akışı yapar.
 11. "Son değişikliği geri al" gibi isteklerde `git log` ile ilgili commit'i bul ve `git revert --no-commit <sha>` kullan; sonra `npm test`.
 
