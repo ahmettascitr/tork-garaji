@@ -1,0 +1,523 @@
+{
+  "name": "Tork Garajı — Telegram komutları",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 20
+            }
+          ]
+        }
+      },
+      "id": "3842debc-46cd-4806-8b97-bfd35e2ad51a",
+      "name": "Her 20 saniyede",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f990fcff-a117-4f58-88b7-f0854ee8d47a",
+              "name": "TELEGRAM_BOT_TOKEN",
+              "value": "BURAYA_BOTFATHER_TOKENI",
+              "type": "string"
+            },
+            {
+              "id": "efbe2b83-9cab-4389-927b-c1cf8d69a613",
+              "name": "TELEGRAM_CHAT_ID",
+              "value": "BURAYA_SENIN_CHAT_ID",
+              "type": "string"
+            },
+            {
+              "id": "bced05f9-a1a9-47bd-b9d9-ca569625e958",
+              "name": "GITHUB_REPO",
+              "value": "KULLANICI_ADIN/tork-garaji",
+              "type": "string"
+            },
+            {
+              "id": "61a89c9c-0c41-4d45-a0b4-e4815646a540",
+              "name": "GITHUB_TOKEN",
+              "value": "BURAYA_GITHUB_TOKEN",
+              "type": "string"
+            },
+            {
+              "id": "ea911689-1610-46dd-9b68-d2e8d51fbb38",
+              "name": "TELEGRAM_API",
+              "value": "https://api.telegram.org",
+              "type": "string"
+            },
+            {
+              "id": "40ac4219-5810-46bf-98ee-b256fdf23d37",
+              "name": "GITHUB_API",
+              "value": "https://api.github.com",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "372ca4ee-cfb9-404c-bb8b-1579e511b803",
+      "name": "Ayarlar",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Ayarlar').first().json.TELEGRAM_API }}/bot{{ $('Ayarlar').first().json.TELEGRAM_BOT_TOKEN }}/getUpdates?timeout=0",
+        "options": {}
+      },
+      "id": "5df8f9f6-3f86-44bc-bc36-1d922622f99e",
+      "name": "Telegram: yeni mesajlar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e604c8ed-decd-4de7-9ec0-f70de8ec52bf",
+              "leftValue": "={{ ($json.result || []).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "bbde696e-858b-4933-91e5-f132f0b25ea7",
+      "name": "Yeni mesaj var mı?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Ayarlar').first().json.TELEGRAM_API }}/bot{{ $('Ayarlar').first().json.TELEGRAM_BOT_TOKEN }}/getUpdates?timeout=0&offset={{ $json.result[$json.result.length - 1].update_id + 1 }}",
+        "options": {}
+      },
+      "id": "042d7c9f-1167-489d-bb39-55962f307f6e",
+      "name": "Telegram: okundu say",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Telegram mesajlarını komutlara çevirir. Ağ çağrısı yapmaz; işi sonraki düğümler yapar.\nconst cfg = $('Ayarlar').first().json;\nconst updates = $input.first().json.result || [];\nconst HELP = [\n  '🔧 Komutlar', '',\n  'Düz mesaj → Claude oyunda bu değişikliği yapar, test eder, derler ve Play iç test kanalına yükler.',\n  '/dene <istek> → Aynısı ama Play\\'e yüklemez, sadece APK gönderir.',\n  '/apk → Şu anki sürümün APK\\'sını derleyip gönderir.',\n  '/yayinla → Şu anki sürümü Play iç test kanalına yükler.',\n  '/durum → Son işlerin durumu.', '',\n  'Örnek: Basamak merdivenine 60 cm\\'lik yeni bir basamak ekle',\n].join('\\n');\nconst out = [];\nfor (const u of updates) {\n  const m = u.message;\n  if (!m || !m.text) continue;\n  if (String(m.chat.id) !== String(cfg.TELEGRAM_CHAT_ID)) continue;   // yalnızca senin sohbetin\n  const text = m.text.trim();\n  const parts = text.split(/\\s+/);\n  const cmd = parts[0].toLowerCase().replace(/@.*$/, '');\n  const arg = parts.slice(1).join(' ').trim();\n  if (cmd === '/start' || cmd === '/yardim' || cmd === '/help') out.push({ action: 'reply', text: HELP });\n  else if (cmd === '/apk') out.push({ action: 'dispatch', workflow: 'build.yml', inputs: { track: 'none', notes: 'İstek üzerine derlendi' }, reply: '📦 Derliyorum, APK birkaç dakika içinde gelecek.' });\n  else if (cmd === '/yayinla') out.push({ action: 'dispatch', workflow: 'build.yml', inputs: { track: 'internal', notes: '' }, reply: '🚀 Derleyip Play iç test kanalına yüklüyorum.' });\n  else if (cmd === '/dene') {\n    if (!arg) out.push({ action: 'reply', text: 'Ne değişsin? Örnek: /dene tekerler biraz daha hızlı dönsün' });\n    else out.push({ action: 'dispatch', workflow: 'ai-edit.yml', inputs: { prompt: arg, track: 'none' }, reply: '👍 Aldım (deneme, Play\\'e yüklenmeyecek).' });\n  }\n  else if (cmd === '/durum') out.push({ action: 'status' });\n  else if (cmd.startsWith('/')) out.push({ action: 'reply', text: 'Bu komutu tanımıyorum.\\n\\n' + HELP });\n  else out.push({ action: 'dispatch', workflow: 'ai-edit.yml', inputs: { prompt: text, track: 'internal' }, reply: '👍 Aldım, sıraya koydum.' });\n}\nreturn out.map(json => ({ json }));"
+      },
+      "id": "52718ae7-c892-45d4-9851-d99909f20b99",
+      "name": "Komutları ayır",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0d99ead9-3b92-406f-95ee-b69441a9ec7e",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "dispatch",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "GitHub işi"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "419309be-c6f5-45a0-8d70-d15a0d298292",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Durum"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a24da17e-4e79-4a85-a22d-1144011a7020",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "reply",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Cevap"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7599834a-1fc6-400c-ac49-39d181b2317f",
+      "name": "Ne yapılacak?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1120,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Ayarlar').first().json.GITHUB_API }}/repos/{{ $('Ayarlar').first().json.GITHUB_REPO }}/actions/workflows/{{ $json.workflow }}/dispatches",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Ayarlar').first().json.GITHUB_TOKEN }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ref: 'main', inputs: $json.inputs }) }}"
+      },
+      "id": "e541cf69-47ec-4d7e-b139-5b61d97bec53",
+      "name": "GitHub: iş başlat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// GitHub'ın cevabını Telegram mesajına çevirir\nconst src = $('Ne yapılacak?').all(0);\nreturn $input.all().map((it, i) => {\n  const sc = it.json.statusCode;\n  const ok = sc >= 200 && sc < 300;\n  let text = ok ? src[i].json.reply : '❌ GitHub\\'a iletemedim (hata ' + sc + ').';\n  if (sc === 404) text += '\\nDepo adı ya da iş akışı bulunamadı. Ayarlar\\'daki GITHUB_REPO doğru mu, dosyalar GitHub\\'a yüklendi mi?';\n  if (sc === 401 || sc === 403) text += '\\nGitHub anahtarı geçersiz ya da \"Actions: Read and write\" yetkisi yok.';\n  if (sc === 422) text += '\\nİş akışı bu girdiyi kabul etmedi.';\n  return { json: { text } };\n});"
+      },
+      "id": "9243d053-59aa-4d26-b7a0-5d66f428eacc",
+      "name": "Cevap: iş",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Ayarlar').first().json.GITHUB_API }}/repos/{{ $('Ayarlar').first().json.GITHUB_REPO }}/actions/runs?per_page=6",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Ayarlar').first().json.GITHUB_TOKEN }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        }
+      },
+      "id": "72b774e9-e58b-4ccc-9067-d6b598f3b716",
+      "name": "GitHub: son işler",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Son GitHub işlerini okunur bir listeye çevirir\nconst r = $input.first().json;\nif (!(r.statusCode >= 200 && r.statusCode < 300)) return [{ json: { text: '❌ Durumu alamadım (hata ' + r.statusCode + ').' } }];\nconst runs = (r.body && r.body.workflow_runs) || [];\nconst icon = x => x.status !== 'completed' ? '⏳' : x.conclusion === 'success' ? '✅' : x.conclusion === 'cancelled' ? '⚪' : '❌';\nconst when = s => new Date(s).toLocaleString('tr-TR', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });\nconst lines = runs.map(x => icon(x) + ' ' + x.name + ' · ' + when(x.created_at) + '\\n' + x.html_url);\nreturn [{ json: { text: lines.length ? lines.join('\\n\\n') : 'Henüz iş yok.' } }];"
+      },
+      "id": "5562a35e-c168-4948-9baa-ea9e3b880a57",
+      "name": "Cevap: durum",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Ayarlar').first().json.TELEGRAM_API }}/bot{{ $('Ayarlar').first().json.TELEGRAM_BOT_TOKEN }}/sendMessage",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $('Ayarlar').first().json.TELEGRAM_CHAT_ID, text: $json.text, disable_web_page_preview: true }) }}"
+      },
+      "id": "3f1b578e-c966-4ff4-86f0-6933c0f44dda",
+      "name": "Telegram: gönder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1820,
+        260
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "content": "## Kurulum\n1. **Ayarlar** düğümünü aç, ilk 4 değeri doldur.\n2. Sağ üstten iş akışını **Active** yap.\n3. Telegram'da botuna `/yardim` yaz.\n\nBilgisayarın ve n8n açık olduğu sürece mesajlar 20 saniye içinde işlenir. Tünel ya da port açmak gerekmez.",
+        "height": 240,
+        "width": 440
+      },
+      "id": "a17d233a-39ef-4f4f-9671-ec95ffce410d",
+      "name": "Not",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -120
+      ]
+    }
+  ],
+  "connections": {
+    "Her 20 saniyede": {
+      "main": [
+        [
+          {
+            "node": "Ayarlar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ayarlar": {
+      "main": [
+        [
+          {
+            "node": "Telegram: yeni mesajlar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram: yeni mesajlar": {
+      "main": [
+        [
+          {
+            "node": "Yeni mesaj var mı?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Yeni mesaj var mı?": {
+      "main": [
+        [
+          {
+            "node": "Telegram: okundu say",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Komutları ayır",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Komutları ayır": {
+      "main": [
+        [
+          {
+            "node": "Ne yapılacak?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ne yapılacak?": {
+      "main": [
+        [
+          {
+            "node": "GitHub: iş başlat",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GitHub: son işler",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram: gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub: iş başlat": {
+      "main": [
+        [
+          {
+            "node": "Cevap: iş",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cevap: iş": {
+      "main": [
+        [
+          {
+            "node": "Telegram: gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub: son işler": {
+      "main": [
+        [
+          {
+            "node": "Cevap: durum",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cevap: durum": {
+      "main": [
+        [
+          {
+            "node": "Telegram: gönder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none"
+  },
+  "pinData": {}
+}

@@ -1,0 +1,121 @@
+name: Claude ile düzenle
+
+# n8n (Telegram) bu iş akışını bir istekle başlatır:
+# Claude kodu düzenler → fizik testleri → main'e kaydeder → derle ve yükle → Telegram'a özet
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Ne değişsin? (Türkçe yazabilirsin)'
+        required: true
+      track:
+        description: 'Başarılı olursa hangi Play kanalına (internal / none)'
+        default: 'internal'
+
+concurrency: { group: ai-edit, cancel-in-progress: false }
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  edit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+      sha: ${{ steps.commit.outputs.sha }}
+      ozet: ${{ steps.sum.outputs.ozet }}
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      USER_PROMPT: ${{ inputs.prompt }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: |
+          scripts/telegram.sh "🛠️ Üzerinde çalışıyorum:
+          ${USER_PROMPT}"
+
+      - name: Claude
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Bu depo bir Android mobil oyunu. Önce CLAUDE.md dosyasını oku ve oradaki kurallara uy.
+            Oyunun sahibi Telegram'dan şu isteği gönderdi:
+
+            ---
+            ${{ inputs.prompt }}
+            ---
+
+            İsteği uygula. Bitirmeden önce `npm test` çalıştır; test geçmiyorsa düzelt.
+            İstek belirsizse en makul yorumu uygula ve özette hangi yorumu seçtiğini söyle.
+            İstek bir soruysa kodu değiştirme, sadece cevapla.
+            Git commit yapma; bunu iş akışı yapacak.
+          claude_args: |
+            --max-turns 80
+            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,Bash(npm test),Bash(npm run *),Bash(node *),Bash(git diff*),Bash(git status*)"
+            --json-schema '{"type":"object","properties":{"ozet":{"type":"string","description":"Oyun sahibine Türkçe, teknik olmayan 2-5 cümlelik özet: ne değişti, oyuncu ne fark edecek"},"surum_notu":{"type":"string","description":"Play Store için tek cümlelik Türkçe sürüm notu"}},"required":["ozet","surum_notu"]}'
+
+      - name: Özet
+        id: sum
+        if: always()
+        env: { OUT: "${{ steps.claude.outputs.structured_output }}" }
+        run: |
+          OZET=$(node -e "try{const o=JSON.parse(process.env.OUT||'{}');console.log(o.ozet||'')}catch(e){console.log('')}")
+          NOT=$(node -e "try{const o=JSON.parse(process.env.OUT||'{}');console.log(o.surum_notu||'')}catch(e){console.log('')}")
+          { echo "ozet<<EOF_OZET"; echo "$OZET"; echo "EOF_OZET"; echo "not<<EOF_NOT"; echo "$NOT"; echo "EOF_NOT"; } >> $GITHUB_OUTPUT
+
+      - name: Fizik testleri (güvenlik kapısı)
+        id: tests
+        continue-on-error: true
+        run: npm test 2>&1 | tee test.log; exit ${PIPESTATUS[0]}
+
+      - name: Kaydet
+        id: commit
+        run: |
+          rm -f test.log
+          if [ "${{ steps.tests.outcome }}" != "success" ]; then echo "changed=false" >> $GITHUB_OUTPUT; exit 0; fi
+          git add -A
+          if git diff --cached --quiet; then echo "changed=false" >> $GITHUB_OUTPUT; exit 0; fi
+          git config user.name "claude[bot]"; git config user.email "41898282+claude[bot]@users.noreply.github.com"
+          MSG=$(node -e "console.log('AI: '+(process.env.USER_PROMPT||'').replace(/\s+/g,' ').slice(0,72))")
+          git commit -m "$MSG"; git push origin HEAD:main
+          echo "changed=true" >> $GITHUB_OUTPUT; echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Telegram — sonuç
+        if: always()
+        env:
+          OZET: ${{ steps.sum.outputs.ozet }}
+        run: |
+          if [ "${{ steps.claude.outcome }}" != "success" ]; then
+            scripts/telegram.sh "❌ Claude işi tamamlayamadı. Ayrıntı: ${RUN_URL}"
+          elif [ "${{ steps.tests.outcome }}" != "success" ]; then
+            scripts/telegram.sh "⚠️ Değişiklik yapıldı ama fizik testleri geçmedi, bu yüzden kaydetmedim.
+          ${OZET}
+          Ayrıntı: ${RUN_URL}"
+          elif [ "${{ steps.commit.outputs.changed }}" = "true" ]; then
+            scripts/telegram.sh "📝 ${OZET}
+
+          Şimdi derliyorum, APK birkaç dakika içinde gelecek."
+          else
+            scripts/telegram.sh "💬 ${OZET:-Kodda değişiklik gerekmedi.}"
+          fi
+
+  build:
+    needs: edit
+    if: needs.edit.outputs.changed == 'true'
+    uses: ./.github/workflows/build.yml
+    with:
+      ref: ${{ needs.edit.outputs.sha }}
+      track: ${{ inputs.track }}
+      notes: ${{ needs.edit.outputs.ozet }}
+    secrets: inherit

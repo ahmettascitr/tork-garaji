@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>{{APP_NAME}}</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+:root{
+  --scene:#e4e7ea; --ink:#1d2125; --muted:#5b646d; --bench:#1c2024; --bench2:#272c31; --line:#363c43;
+  --bink:#eef0f2; --bmuted:#8e98a3; --yellow:#f2c014; --ydark:#b98f06; --orange:#e0561b; --red:#e2473a; --green:#2fae66;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;overflow:hidden}
+body{background:var(--scene);color:var(--ink);font-family:Barlow,system-ui,sans-serif;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+#game{position:relative;height:100%;width:100%;overflow:hidden}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+.hud{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;pointer-events:none;z-index:3}
+.hud>*{pointer-events:auto}
+.pill{background:rgba(28,32,36,.88);color:#eef0f2;border:0;border-radius:999px;padding:8px 13px;font:600 14px Barlow,sans-serif;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.pill b{color:var(--yellow);font-family:"Chakra Petch",sans-serif}
+.timer{position:absolute;left:50%;top:60px;transform:translateX(-50%);font:700 26px "Chakra Petch",sans-serif;font-variant-numeric:tabular-nums;pointer-events:none;color:var(--ink)}
+.timer small{font-size:14px;color:var(--muted);font-weight:500}
+.corner{position:absolute;right:12px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:3}
+.banner{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);font:700 32px "Chakra Petch",sans-serif;letter-spacing:.05em;color:#fff;background:var(--red);padding:10px 22px;border-radius:12px;box-shadow:0 10px 30px #0004;white-space:nowrap;animation:pop .35s cubic-bezier(.2,1.4,.4,1);z-index:4;pointer-events:none}
+.banner.win{background:var(--green)}
+.replaytag{position:absolute;left:50%;top:60px;transform:translateX(-50%);font:700 14px "Chakra Petch",sans-serif;letter-spacing:.12em;color:#fff;background:rgba(28,32,36,.85);white-space:nowrap;padding:6px 14px;border-radius:999px;pointer-events:none;z-index:4}
+@keyframes pop{from{transform:translate(-50%,-50%) scale(.6);opacity:0}}
+.intro{position:absolute;left:50%;top:26%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;width:90%}
+.intro .n{font:600 13px Barlow,sans-serif;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+.intro .t{font:700 40px/1.05 "Chakra Petch",sans-serif;text-wrap:balance}
+
+/* garage */
+.garage{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;background:var(--bench);color:var(--bink);border-radius:18px 18px 0 0;box-shadow:0 -12px 40px #0005;transition:transform .35s cubic-bezier(.2,.8,.2,1);padding-bottom:env(safe-area-inset-bottom,0px);z-index:2}
+.garage.closed{transform:translateY(105%)}
+.gtele{padding:10px 16px 0;font-size:12px;color:var(--bmuted);font-variant-numeric:tabular-nums;display:flex;gap:12px;flex-wrap:wrap}
+.gtele b{color:var(--bink);font-weight:600}
+.palette{display:flex;gap:6px;overflow-x:auto;touch-action:pan-x;padding:10px 16px 6px;scrollbar-width:none}
+.palette::-webkit-scrollbar{display:none}
+.tool{touch-action:pan-x;cursor:grab;flex:0 0 auto;width:62px;border:1px solid var(--line);background:var(--bench2);border-radius:12px;padding:6px 2px 5px;display:flex;flex-direction:column;align-items:center;gap:3px;font:600 11px Barlow,sans-serif;color:var(--bink);position:relative}
+.tool canvas{position:static;width:40px;height:30px}
+.tool[aria-pressed="true"]{border-color:var(--yellow);box-shadow:inset 0 0 0 1px var(--yellow);background:#2f3438}
+.tool .new{position:absolute;top:-5px;right:-3px;background:var(--orange);color:#fff;font-size:9px;letter-spacing:.06em;padding:1px 5px;border-radius:6px}
+.settings{display:flex;gap:10px;padding:4px 16px 8px;align-items:center;flex-wrap:wrap}
+.set{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--bmuted)}
+.seg{display:flex;gap:3px;background:var(--bench2);padding:3px;border-radius:9px}
+.seg button{border:0;background:transparent;color:var(--bink);border-radius:6px;padding:6px 9px;font:600 13px Barlow,sans-serif}
+.seg button[aria-pressed="true"]{background:var(--yellow);color:#1b1a12}
+.seg button:disabled{opacity:.3}
+.gfoot{display:flex;gap:8px;padding:6px 16px 14px;align-items:stretch}
+.gfoot .warn{flex:1 1 100%;font-size:13px;color:#ffb199}
+.gfoot-row{display:flex;gap:8px;width:100%}
+.hintbtn{position:relative}
+.hintbtn i{position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;background:var(--orange);border:2px solid var(--bench)}
+.tier{border:1px solid var(--line);background:var(--bench2);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.tier b{font:700 13px 'Chakra Petch',sans-serif;letter-spacing:.08em;color:var(--yellow)}
+.tier.locked{opacity:.55}
+.tier p{color:var(--bink)!important}
+.tier small{color:var(--bmuted)}
+.ghost-btn{border:1px solid var(--line);background:var(--bench2);border-radius:12px;padding:0 14px;font:600 14px Barlow,sans-serif}
+.go{flex:1;border:0;border-radius:12px;background:var(--yellow);color:#1b1a12;font:700 18px "Chakra Petch",sans-serif;letter-spacing:.08em;padding:13px;box-shadow:0 4px 0 var(--ydark)}
+.go:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ydark)}
+.go:disabled{opacity:.4;transform:none}
+
+/* modal + map */
+.modal{position:absolute;inset:0;background:rgba(20,23,26,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+.card{background:var(--bench);color:var(--bink);border-radius:18px;padding:20px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 50px #0006;max-height:100%;overflow-y:auto}
+.card h3{margin:0;font:700 26px "Chakra Petch",sans-serif}
+.card p{margin:0;color:var(--bmuted);line-height:1.45}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap}
+.btn{flex:1;border:1px solid var(--line);background:var(--bench2);color:var(--bink);border-radius:12px;padding:12px;font:600 15px Barlow,sans-serif;white-space:nowrap}
+.btn.primary{background:var(--yellow);color:#1b1a12;border-color:var(--yellow);font-weight:700}
+.unlock{display:flex;gap:12px;align-items:center;background:#2a2410;border:1px solid #5c4a0c;border-radius:12px;padding:10px 12px}
+.unlock canvas{position:static;width:56px;height:42px;flex:0 0 auto}
+.unlock b{display:block;font:700 15px "Chakra Petch",sans-serif;color:var(--yellow)}
+.unlock span{font-size:13px;color:var(--bmuted)}
+.map{position:absolute;inset:0;overflow-y:auto;padding:64px 16px 24px;display:flex;flex-direction:column;gap:12px;z-index:3;background:var(--scene)}
+.map h1{margin:0 0 2px;font:700 30px "Chakra Petch",sans-serif}
+.map .sub{color:var(--muted);margin:0 0 6px}
+.ladder{background:var(--bench);color:var(--bink);border:0;border-radius:16px;padding:14px;text-align:left;display:flex;flex-direction:column;gap:10px}
+.ladder:disabled{opacity:.55}
+.lhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.lhead b{font:700 19px "Chakra Petch",sans-serif}
+.lhead span{font-size:13px;color:var(--bmuted)}
+.rungs{display:flex;gap:4px}
+.rung{flex:1;height:34px;border-radius:8px;background:var(--bench2);display:flex;align-items:center;justify-content:center;font:600 12px "Chakra Petch",sans-serif;color:var(--bmuted);font-variant-numeric:tabular-nums}
+.rung.done{background:var(--yellow);color:#1b1a12}
+.rung.next{box-shadow:inset 0 0 0 2px var(--yellow);color:var(--bink)}
+.loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 16px "Chakra Petch",sans-serif;color:var(--muted)}
+@media (prefers-reduced-motion: reduce){.garage{transition:none}.banner{animation:none}}
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="cv"></canvas>
+  <div class="loading" id="loading">Garaj hazırlanıyor…</div>
+
+  <div class="hud" id="hud">
+    <button class="pill" id="btnMap" aria-label="Harita"><b id="hName">—</b></button>
+    <div class="pill" id="hTries">Deneme 0</div>
+  </div>
+  <div class="timer" id="timer" hidden></div>
+  <div class="replaytag" id="replayTag" hidden>YAVAŞ ÇEKİM · GEÇMEK İÇİN DOKUN</div>
+  <button class="pill corner" id="btnStop" hidden>■ Durdur</button>
+  <div class="banner" id="banner" hidden></div>
+  <div class="intro" id="intro" hidden><div class="n" id="introN"></div><div class="t" id="introT"></div></div>
+
+  <section class="garage closed" id="garage" aria-label="Garaj">
+    <div class="gtele" id="tele"></div>
+    <div class="palette" id="palette"></div>
+    <div class="settings">
+      <div class="set">Dişli <div class="seg" id="segGear"></div></div>
+      <div class="set">Süspansiyon <div class="seg" id="segSusp"></div></div>
+    </div>
+    <div class="gfoot">
+      <div style="display:flex;flex-direction:column;gap:6px;width:100%">
+        <div class="warn" id="warn" hidden></div>
+        <div class="gfoot-row"><button class="ghost-btn" id="btnClear">Temizle</button><button class="ghost-btn hintbtn" id="btnHint">İpucu<i id="hintDot" hidden></i></button><button class="go" id="btnGo">TEST ET</button></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="map" id="map" hidden></div>
+  <div class="modal" id="modal" hidden><div class="card" id="card"></div></div>
+</div>
+<script>window.APP_NAME="{{APP_NAME}}";</script>
+<script src="planck.min.js"></script>
+<script src="core.js"></script>
+<script src="solpack.js"></script>
+<script src="game.js"></script>
+<script src="native.js"></script>
+</body>
+</html>

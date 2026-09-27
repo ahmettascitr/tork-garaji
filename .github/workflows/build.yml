@@ -1,0 +1,98 @@
+name: Derle ve yükle
+
+# main'e her gönderimde ya da elle: testler → APK + AAB → (isteğe bağlı) Play Console → Telegram
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'n8n/**', 'store/**']
+  workflow_dispatch:
+    inputs:
+      track:
+        description: 'Play kanalı (internal / alpha / beta / production / none)'
+        default: 'internal'
+      notes:
+        description: 'Sürüm notu'
+        default: ''
+  workflow_call:
+    inputs:
+      ref: { type: string, required: true }
+      track: { type: string, default: 'internal' }
+      notes: { type: string, default: '' }
+
+concurrency: { group: build, cancel-in-progress: false }
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TRACK: ${{ inputs.track || vars.PLAY_TRACK || 'internal' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      NOTES: ${{ inputs.notes }}
+      HAS_KEY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_PLAY: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.ref || github.sha }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21, cache: gradle }
+      - run: npm ci
+      - name: Fizik testleri (her bölüm çözülebilir mi?)
+        run: npm test
+      - name: Web dosyaları
+        run: npm run build:web && npm run build:preview
+      - name: Android ayarları
+        run: |
+          # dakika cinsinden, her iki iş akışında da hep artan sürüm kodu
+          export VERSION_CODE=$(( ($(date +%s) - 1767225600) / 60 ))
+          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+          node scripts/patch-android.js && npx cap sync android
+      - name: İmza anahtarı
+        if: env.HAS_KEY == 'true'
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload-key.jks"
+      - name: Gradle derlemesi
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && format('{0}/upload-key.jks', runner.temp) || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: chmod +x gradlew && ./gradlew --no-daemon bundleRelease assembleRelease
+      - name: Dosyaları topla
+        id: out
+        run: |
+          mkdir -p out
+          NAME=$(node -p "require('./app.config.json').appName.replace(/[^A-Za-z0-9]+/g,'-')")
+          V=$(node -p "require('./app.config.json').versionName")-${VERSION_CODE}
+          cp android/app/build/outputs/bundle/release/app-release.aab "out/$NAME-$V.aab"
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          cp "$APK" "out/$NAME-$V.apk"; cp dist/preview.html out/
+          echo "apk=out/$NAME-$V.apk" >> $GITHUB_OUTPUT; echo "aab=out/$NAME-$V.aab" >> $GITHUB_OUTPUT; echo "v=$V" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with: { name: "surum-${{ steps.out.outputs.v }}", path: out/ }
+      - name: Play Console'a yükle
+        id: play
+        if: env.TRACK != 'none' && env.HAS_PLAY == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ vars.APP_ID || 'com.torkgaraji.app' }}
+          releaseFiles: ${{ steps.out.outputs.aab }}
+          track: ${{ env.TRACK }}
+          status: ${{ vars.PLAY_RELEASE_STATUS || 'completed' }}
+      - name: Telegram — başarılı
+        if: success()
+        run: |
+          PLAY="Play: yüklenmedi (ayar yok ya da kanal 'none')"
+          [ "${{ steps.play.outcome }}" = "success" ] && PLAY="Play: '${TRACK}' kanalına yüklendi"
+          scripts/telegram.sh "✅ Sürüm ${{ steps.out.outputs.v }} hazır
+          ${PLAY}
+          ${NOTES}" "${{ steps.out.outputs.apk }}"
+      - name: Telegram — hata
+        if: failure()
+        run: |
+          scripts/telegram.sh "❌ Derleme başarısız. Ayrıntı: ${RUN_URL}"

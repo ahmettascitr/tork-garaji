@@ -1,0 +1,13 @@
+{
+  "appId": "com.torkgaraji.app",
+  "appName": "Tork Garajı",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#e4e7ea"
+  },
+  "plugins": {
+    "StatusBar": {
+      "overlaysWebView": true
+    }
+  }
+}
