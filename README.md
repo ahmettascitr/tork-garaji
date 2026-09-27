@@ -1,6 +1,6 @@
 # Tork Garajı
 
-Lego/Technic tarzı araç mühendisliği oyunu. Oyuncu garajda parçaları sürükleyip bırakarak araç kurar, araç gerçek fizikle basamak, rampa, boşluk, yumurta düşüşü ve tuzaklı parkurlara karşı test edilir.
+Lego/Technic tarzı araç mühendisliği oyunu. Oyuncu garajda parçaları sürükleyip bırakarak araç kurar, araç gerçek fizikle test edilir. Ana mod Macera: tahterevalli, kopan köprü, hareketli platform, kutu duvarı, yuvarlanan variller ve sinsi tuzaklarla dolu 15 bölüm, her birinde 3 yıldız (bitir, süre, maliyet). Antrenman modunda tek engelli basamak, rampa, boşluk, yumurta ve tuzak testleri var.
 
 ## Nasıl çalışır
 
@@ -32,7 +32,7 @@ Telegram mesajı → n8n (bilgisayarında) → GitHub Actions
 
 ```
 npm ci                 # bağımlılıklar
-npm test               # 26 bölümün hepsi çözülebilir mi (≈5 sn)
+npm test               # 39 bölümün hepsi çözülebilir mi, yıldızlar ulaşılabilir mi (≈7 sn)
 npm run build:preview  # dist/preview.html — tarayıcıda oynanabilir tek dosya
 npm run sync           # www/ + Android projesini güncelle
 npm run solutions      # çözüm paketini yeniden üret

@@ -1,0 +1,77 @@
+{
+ "c01": {
+  "bestT": 4.13,
+  "minCost": 13,
+  "n": 50
+ },
+ "c02": {
+  "bestT": 4.18,
+  "minCost": 15,
+  "n": 18
+ },
+ "c03": {
+  "bestT": 4.1,
+  "minCost": 15,
+  "n": 28
+ },
+ "c04": {
+  "bestT": 3.68,
+  "minCost": 17,
+  "n": 15
+ },
+ "c05": {
+  "bestT": 5.8,
+  "minCost": 33,
+  "n": 6
+ },
+ "c06": {
+  "bestT": 4.32,
+  "minCost": 22,
+  "n": 4
+ },
+ "c07": {
+  "bestT": 8.83,
+  "minCost": 19,
+  "n": 5
+ },
+ "c08": {
+  "bestT": 3.78,
+  "minCost": 20,
+  "n": 7
+ },
+ "c09": {
+  "bestT": 3.8,
+  "minCost": 26,
+  "n": 11
+ },
+ "c10": {
+  "bestT": 2.55,
+  "minCost": 26,
+  "n": 6
+ },
+ "c11": {
+  "bestT": 6.05,
+  "minCost": 20,
+  "n": 9
+ },
+ "c12": {
+  "bestT": 10.75,
+  "minCost": 34,
+  "n": 2
+ },
+ "c13": {
+  "bestT": 2.82,
+  "minCost": 11,
+  "n": 8
+ },
+ "c14": {
+  "bestT": 2.83,
+  "minCost": 14,
+  "n": 4
+ },
+ "c15": {
+  "bestT": 16.08,
+  "minCost": 29,
+  "n": 1
+ }
+}

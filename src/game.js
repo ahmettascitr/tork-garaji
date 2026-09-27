@@ -26,7 +26,11 @@ let prog={done:{},design:null,seenNew:{}};
 try{const p=JSON.parse(localStorage.getItem('paletGaraji3')||'null');if(p&&p.done)prog=Object.assign(prog,p);}catch(e){}
 const save=()=>{try{localStorage.setItem('paletGaraji3',JSON.stringify(prog));}catch(e){}};
 const isDone=k=>!!prog.done[k];
-function owned(id){if(TOOLS.find(t=>t.id===id&&t.start))return true;return Object.entries(UNLOCKS).some(([k,v])=>v===id&&isDone(k));}
+function owned(id){if(TOOLS.find(t=>t.id===id&&t.start))return true;return Object.entries(UNLOCKS).some(([k,v])=>v===id&&isDone(k))||Object.entries(C.CAMPAIGN_UNLOCK).some(([k,v])=>v===id&&isDone('camp:'+k));}
+const campKey=i=>'camp:'+C.CAMPAIGN[i].id;
+const campOpen=i=>i===0||isDone(campKey(i-1));
+const starsOf=i=>{const m=(prog.stars||{})[C.CAMPAIGN[i].id]||0;return (m&1)+((m>>1)&1)+((m>>2)&1);};
+const fmtN=(v,d)=>String(d!=null?(+v).toFixed(d):v).replace('.',',');
 const gearOwned=g=>g===1||(g===2&&owned('gear2'))||(g===0&&owned('gear0'));
 
 // default design: simple car
@@ -36,7 +40,7 @@ if(!design.cells)design.cells={};
 function saveDesign(){prog.design=design;save();}
 
 // ---------- state ----------
-let li=0,ri=0,level=null,tries=0,phase='map',phaseT=0,sim=null,prevSim=null,tool='beam',motorOn=true;
+let mode='camp',ci=0,li=0,ri=0,level=null,tries=0,phase='map',phaseT=0,sim=null,prevSim=null,tool='beam',motorOn=true;
 let parts=[],shake=0,replay=null,autoRun=false,lastTele=null;
 
 // ---------- canvas ----------
@@ -124,30 +128,52 @@ function groundAt(x){let best=-99;for(const ch of level.geo.chains){for(let i=1;
   if(a[0]!==b[0]&&x>=Math.min(a[0],b[0])&&x<=Math.max(a[0],b[0])){const y=a[1]+(b[1]-a[1])*(x-a[0])/(b[0]-a[0]);if(y>best)best=y;}}}return best<-50?0:best;}
 function endX(){return level.geo.flagX!=null?level.geo.flagX:level.geo.wallX;}
 function drawWorld(){
+  drawTraps(true);
   level.geo.chains.forEach(ch=>{ctx.beginPath();ctx.moveTo(ch[0][0],-30);ch.forEach(p=>ctx.lineTo(p[0],p[1]));ctx.lineTo(ch[ch.length-1][0],-30);ctx.closePath();
     const g=ctx.createLinearGradient(0,2,0,-3);g.addColorStop(0,'#c6ccd2');g.addColorStop(1,'#8f98a1');ctx.fillStyle=g;ctx.fill();
     ctx.beginPath();ch.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.strokeStyle='#f3f4f5';ctx.lineWidth=0.03;ctx.stroke();});
   // ruler marks at obstacle
   if(level.geo.wallX!=null){const x=level.geo.wallX,y0=groundAt(x-0.05);ctx.save();ctx.beginPath();ctx.rect(x,y0,0.3,1.5);ctx.clip();
     for(let k=-2;k<12;k++){ctx.fillStyle=k%2?'#1d2125':'#f2c014';ctx.beginPath();ctx.moveTo(x,y0+k*0.18);ctx.lineTo(x+0.3,y0+k*0.18+0.3);ctx.lineTo(x+0.3,y0+k*0.18+0.39);ctx.lineTo(x,y0+k*0.18+0.09);ctx.fill();}ctx.restore();}
-  drawTraps();
+  drawTraps(false);
   if(level.geo.flagX!=null){const fx=flagVis,fy=groundAt(fx+0.05);ctx.fillStyle='#2b3035';ctx.fillRect(fx,fy,0.035,1.1);
     for(let r=0;r<3;r++)for(let c=0;c<5;c++){ctx.fillStyle=(r+c)%2?'#1d2125':'#fff';ctx.fillRect(fx+0.035+c*0.08,fy+1.1-(r+1)*0.09,0.08,0.09);}}
 }
 let flagVis=0;
-function drawTraps(){const S=sim;if(!S||!S.traps)return;
+let curFrame=null;
+function ptf(b){if(curFrame&&b.fi!=null&&sim){const i=(sim.propStart+b.fi)*3;if(i+2<curFrame.length)return [curFrame[i],curFrame[i+1],curFrame[i+2]];}const p=b.getPosition();return [p.x,p.y,b.getAngle()];}
+function shapePath(f){const sh=f.getShape();ctx.beginPath();if(sh.getType()==='circle'){const c=sh.m_p;ctx.arc(c.x,c.y,sh.m_radius,0,7);}else{sh.m_vertices.forEach((v,i)=>i?ctx.lineTo(v.x,v.y):ctx.moveTo(v.x,v.y));ctx.closePath();}}
+function withBody(b,fn){const t=ptf(b);ctx.save();ctx.translate(t[0],t[1]);ctx.rotate(t[2]);fn();ctx.restore();}
+function hazard(x0,y0,w,h,s){ctx.save();ctx.beginPath();ctx.rect(x0,y0,w,h);ctx.clip();for(let x=x0-h-s;x<x0+w;x+=s*2){ctx.fillStyle='#f2c014';ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x+s,y0);ctx.lineTo(x+s+h,y0+h);ctx.lineTo(x+h,y0+h);ctx.fill();}ctx.restore();}
+function groundFill(){const g=ctx.createLinearGradient(0,2,0,-3);g.addColorStop(0,'#c6ccd2');g.addColorStop(1,'#8f98a1');return g;}
+function drawTraps(under){const S=sim;if(!S||!S.traps)return;
   S.traps.forEach(o=>{const t=o.t;
+    if(under){
+      if(t.type==='rise')withBody(o.body,()=>{ctx.fillStyle='#bcc3c9';ctx.fillRect(-o.hw,-o.hh,o.hw*2,o.hh*2);ctx.fillStyle='#f3f4f5';ctx.fillRect(-o.hw,o.hh-0.015,o.hw*2,0.015);
+        if(o.fired){ctx.strokeStyle='rgba(60,66,72,.5)';ctx.lineWidth=0.008;ctx.strokeRect(-o.hw,-o.hh,o.hw*2,o.hh*2);}});
+      if(t.type==='spikes')withBody(o.body,()=>{let f=o.body.getFixtureList();while(f){shapePath(f);ctx.fillStyle='#8a939b';ctx.fill();ctx.strokeStyle='#4a5158';ctx.lineWidth=0.006;ctx.stroke();f=f.getNext();}});
+      return;}
     if(t.type==='ice'&&o.fired){ctx.strokeStyle='rgba(120,200,255,.95)';ctx.lineWidth=0.05;ctx.beginPath();ctx.moveTo(t.x0,t.y0+0.01);ctx.lineTo(t.x1,t.y1+0.01);ctx.stroke();
       ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=0.012;for(let x=t.x0+0.1;x<t.x1;x+=0.25){const f=(x-t.x0)/(t.x1-t.x0),y=t.y0+(t.y1-t.y0)*f;ctx.beginPath();ctx.moveTo(x,y+0.02);ctx.lineTo(x+0.06,y+0.03);ctx.stroke();}}
-    if(o.body){const p=o.body.getPosition(),a=o.body.getAngle();ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a);
+    if(t.type==='roof'){const y0=t.y+t.clear;ctx.fillStyle='#4a5158';ctx.fillRect(t.x0,y0,t.x1-t.x0,8);hazard(t.x0,y0,t.x1-t.x0,0.06,0.07);
+      ctx.fillStyle='#5d656d';for(let x=t.x0+0.25;x<t.x1-0.1;x+=0.5)ctx.fillRect(x,y0+0.06,0.05,8);}
+    if(t.type==='seesaw'){const [px,py]=o.pivot;ctx.fillStyle='#5d656d';ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px-0.13,py-t.h);ctx.lineTo(px+0.13,py-t.h);ctx.closePath();ctx.fill();
+      withBody(o.body,()=>{ctx.fillStyle='#b07a3c';ctx.fillRect(-o.hw,-o.hh,o.hw*2,o.hh*2);ctx.fillStyle='#8c5e2a';for(let x=-o.hw+0.2;x<o.hw;x+=0.3)ctx.fillRect(x,-o.hh,0.012,o.hh*2);});
+      ctx.fillStyle='#e0561b';ctx.beginPath();ctx.arc(px,py,0.03,0,7);ctx.fill();}
+    if(t.type==='bridge'){ctx.strokeStyle='#6b4a22';ctx.lineWidth=0.012;
+      o.planks.forEach(b=>withBody(b,()=>{let f=b.getFixtureList();shapePath(f);ctx.fillStyle='#b07a3c';ctx.fill();ctx.stroke();}));}
+    if(t.type==='platform')withBody(o.body,()=>{ctx.fillStyle='#394046';ctx.fillRect(-o.hw,-o.hh,o.hw*2,o.hh*2);hazard(-o.hw,o.hh-0.035,o.hw*2,0.035,0.05);});
+    if(t.type==='boxes')o.list.forEach(b=>withBody(b,()=>{const h=t.s/2-0.003;ctx.fillStyle='#c98f4a';ctx.fillRect(-h,-h,h*2,h*2);ctx.strokeStyle='#8c5e2a';ctx.lineWidth=0.014;ctx.strokeRect(-h+0.007,-h+0.007,h*2-0.014,h*2-0.014);
+      ctx.beginPath();ctx.moveTo(-h,-h);ctx.lineTo(h,h);ctx.moveTo(-h,h);ctx.lineTo(h,-h);ctx.stroke();}));
+    if(t.type==='barrels')o.list.forEach(b=>withBody(b,()=>{const r=t.r;ctx.fillStyle='#c23b2e';ctx.beginPath();ctx.arc(0,0,r,0,7);ctx.fill();ctx.strokeStyle='#7d241c';ctx.lineWidth=0.014;ctx.beginPath();ctx.arc(0,0,r*0.65,0,7);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(-r,0);ctx.lineTo(r,0);ctx.stroke();ctx.fillStyle='#f2c014';ctx.beginPath();ctx.arc(0,0,r*0.2,0,7);ctx.fill();}));
+    if(o.body&&(t.type==='slab'||t.type==='drop'||t.type==='ceil'))withBody(o.body,()=>{
       if(t.type==='slab'){const g=ctx.createLinearGradient(0,o.hh,0,-o.hh);g.addColorStop(0,'#c6ccd2');g.addColorStop(1,'#a9b0b7');ctx.fillStyle=g;ctx.fillRect(-o.hw,-o.hh,o.hw*2,o.hh*2);
         ctx.fillStyle='#f3f4f5';ctx.fillRect(-o.hw,o.hh-0.015,o.hw*2,0.015);
         if(o.fired){ctx.strokeStyle='#4a5158';ctx.lineWidth=0.012;ctx.beginPath();ctx.moveTo(-o.hw*0.2,o.hh);ctx.lineTo(0,0);ctx.lineTo(o.hw*0.3,-o.hh);ctx.stroke();}}
-      else if(t.type==='drop'){ctx.fillStyle='#5d656d';ctx.fillRect(-o.hw,-o.hh,o.hw*2,o.hh*2);ctx.save();ctx.beginPath();ctx.rect(-o.hw,-o.hh,o.hw*2,0.06);ctx.clip();
-        for(let x=-o.hw-0.1;x<o.hw;x+=0.12){ctx.fillStyle='#f2c014';ctx.beginPath();ctx.moveTo(x,-o.hh);ctx.lineTo(x+0.06,-o.hh);ctx.lineTo(x+0.12,-o.hh+0.06);ctx.lineTo(x+0.06,-o.hh+0.06);ctx.fill();}ctx.restore();}
-      else if(t.type==='ceil'){ctx.fillStyle='#4a5158';ctx.fillRect(-o.hw,-o.hh,o.hw*2,o.hh*2);ctx.save();ctx.beginPath();ctx.rect(-o.hw,-o.hh,o.hw*2,0.07);ctx.clip();
-        for(let x=-o.hw-0.1;x<o.hw;x+=0.14){ctx.fillStyle='#f2c014';ctx.beginPath();ctx.moveTo(x,-o.hh);ctx.lineTo(x+0.07,-o.hh);ctx.lineTo(x+0.14,-o.hh+0.07);ctx.lineTo(x+0.07,-o.hh+0.07);ctx.fill();}ctx.restore();}
-      ctx.restore();}});}
+      else if(t.type==='drop'){ctx.fillStyle='#5d656d';ctx.fillRect(-o.hw,-o.hh,o.hw*2,o.hh*2);hazard(-o.hw,-o.hh,o.hw*2,0.06,0.06);}
+      else if(t.type==='ceil'){ctx.fillStyle='#4a5158';ctx.fillRect(-o.hw,-o.hh,o.hw*2,o.hh*2);hazard(-o.hw,-o.hh,o.hw*2,0.07,0.07);}});
+  });}
 function bg(){ctx.setTransform(DPR,0,0,DPR,0,0);const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#f4f5f6');g.addColorStop(1,'#dde1e4');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
   ctx.strokeStyle='rgba(0,0,0,.035)';ctx.lineWidth=1;const off=((-cam.x*cam.s*.3)%60+60)%60;for(let x=off;x<W;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}}
 function worldTf(){const sx=(Math.random()-.5)*shake,sy=(Math.random()-.5)*shake;ctx.setTransform(DPR,0,0,DPR,0,0);ctx.translate(W/2+sx,H*cam.ay+sy);ctx.scale(cam.s,-cam.s);ctx.translate(-cam.x,-cam.y);}
@@ -231,7 +257,7 @@ function drawEditor(){
   for(let x=0;x<C.COLS;x++)for(let y=0;y<C.ROWS;y++){ctx.fillStyle='rgba(28,32,36,.16)';ctx.beginPath();ctx.arc(grid.x0+(x+.5)*grid.cp,grid.y0+(y+.5)*grid.cp,Math.max(1.2,grid.cp*0.07),0,7);ctx.fill();}
   ctx.fillStyle='#5b646d';ctx.font='600 12px Barlow, sans-serif';ctx.textAlign='right';ctx.fillText('İLERİ →',grid.x0+grid.cp*C.COLS,grid.y0-10);
   ctx.textAlign='left';const A=C.analyze(design);const nw=design.pieces.filter(p=>p.t==='wheel').length;
-  ctx.fillText((A.mass||0).toFixed(1).replace('.',',')+' kg · teker '+nw+'/'+C.MAX_WHEELS,grid.x0,grid.y0-10);
+  let head=(A.mass||0).toFixed(1).replace('.',',')+' kg · teker '+nw+'/'+C.MAX_WHEELS;if(level&&level.goals){const cst=C.costOf(design);head+=' · maliyet '+cst;ctx.fillText(head,grid.x0,grid.y0-10);if(cst<=level.goals.cost){ctx.fillStyle='#b98f06';ctx.fillText(' ★',grid.x0+ctx.measureText(head).width,grid.y0-10);}}else ctx.fillText(head,grid.x0,grid.y0-10);
   // hint line under board
   ctx.textAlign='center';ctx.fillStyle='#7a838c';ctx.font='500 12px Barlow, sans-serif';
   ctx.fillText(drag?'Silmek için tahtanın dışına bırak':'Parçaları sürükle · Tekere dokun: motor aç/kapa',W/2,grid.y0+grid.cp*C.ROWS+22);
@@ -317,6 +343,7 @@ function renderPalette(){
   CATALOG.forEach(it=>{if(it.id==='egg'&&!(level&&level.needEgg))return;if(it.id!=='egg'&&it.own!=='beam'&&!owned(it.own))return;
     const b=document.createElement('button');b.className='tool';b.type='button';
     const cvs=document.createElement('canvas');b.appendChild(cvs);const sp=document.createElement('span');sp.textContent=it.name;b.appendChild(sp);
+    if(mode==='camp'&&it.id!=='egg'){const pc=it.make();const cst=pc.t==='beam'?pc.len*C.COST.beam:pc.t==='wheel'?C.COST.wheel[pc.size]+C.COST.motor:C.COST[pc.t]||0;const q=document.createElement('em');q.className='cost';q.textContent=cst;b.appendChild(q);}
     const t=TOOLS.find(q=>q.id===it.own);if(t&&!t.start&&!t.egg&&!prog.seenNew[it.own]){const n=document.createElement('i');n.className='new';n.textContent='YENİ';b.appendChild(n);}
     let st=null;
     b.addEventListener('pointerdown',e=>{st={x:e.clientX,y:e.clientY,e};prog.seenNew[it.own]=1;save();});
@@ -345,6 +372,7 @@ function refreshGarage(){renderSettings();const v=validity();$('warn').hidden=!v
   const A=C.analyze(Object.assign({},design,{noMotorOk:true}));const g=C.GEARS[design.gear].ratio;
   let vmax=0;Object.values(design.cells).forEach(c=>{if(c&&c.over&&c.over.t==='wheel'&&c.over.motor)vmax=Math.max(vmax,C.W_MOTOR/g*C.WHEEL_R[c.over.size]);});
   let h='<span>Kütle <b>'+A.mass.toFixed(1).replace('.',',')+' kg</b></span><span>Motor <b>'+A.motors+'</b></span><span>Tepe hız <b>'+(level&&level.motorOff?'motor kapalı':vmax.toFixed(1).replace('.',',')+' m/s')+'</b></span>';
+  if(level&&level.goals){const cst=C.costOf(design);h+='<span>Maliyet <b'+(cst<=level.goals.cost?' style="color:var(--yellow)"':'')+'>'+cst+'</b> / ★ '+level.goals.cost+'</span>';}
   if(lastTele)h+='<span style="flex-basis:100%">Son deneme: <b>'+lastTele+'</b></span>';
   $('tele').innerHTML=h;updateHintDot();}
 $('btnClear').onclick=()=>{setPieces([]);};
@@ -365,15 +393,31 @@ const TRAP_HINT=[
   'Geçide girerken tavan iniyor. Araç alçak olmalı ama çıkışta küçük bir basamak da var.',
   'Bayrağa varınca bayrak kaçıyor ve arkasında bir yokuş var. Yolculuk uzun: gücü ve süreyi ona göre planla.',
   'Çöken köprü, düşen blok ve kaçan bayrak aynı parkurda. Hepsine dayanan tek bir araç lazım.'];
+const CAMP_HINT=[
+  'Yol düz görünüyor ama sona doğru yerden bir şey çıkabilir. Aracın gövdesi yere çok yakınsa takılır.',
+  'Tahterevalli senin ağırlığınla devrilir. Bitiş göründüğü yerde olmayabilir; arkasında yerden yükselen bir basamak var.',
+  'Tümsekler aracı zıplatır ve ters çevirebilir. Uzun şasi ya da esneyen süspansiyon işe yarar. Sonda zemin çöker, durma.',
+  'Köprü sallanır ve ağır araçla kopar. Köprüden sonra yerden bir basamak yükselir.',
+  'Kutular itilebilir. Onları devirecek güç ya da üstlerinden geçecek teker gerekir. Kutulardan sonra yukarıdan bir şey düşer.',
+  'Boşluğu atlamak için hız gerekir. Karşıya çarparken ön tarafın yere gömülmemesi için dengeyi düşün. Bayraktan sonra bir yokuş daha var.',
+  'Platform boşluğun üstünde gidip gelir. Doğru anda bin ve karşıya geçince inen tavanın altından geçecek kadar alçak kal.',
+  'Yokuşun tepesinden variller yuvarlanır. Onları ezip geçecek büyük tekerler ya da üstlerinden aşacak güç gerekir.',
+  'Maden tavanı alçak. Araç tavanın altından geçmeli ama çıkıştaki basamağa da tırmanabilmeli.',
+  'Dikenler tekerleri koparır. Dikenler yükselmeden üstlerinden uçacak hız lazım.',
+  'İki tahterevalli arka arkaya. İkincisine binerken birincisinin ucuna takılmamak için aracın boyu önemli. Sonda yine bir sürpriz var.',
+  'Basamak, kutular, boşluk ve düşen blok. Güçlü ve boşluktan uzun bir araç düşün.',
+  'Bu köprü çürük: yavaş ve ağır giden düşer. Hafif ve hızlı ol, sonra inen tavana dikkat.',
+  'Uçurum geniş. Rampadan olabildiğince hızlı çık. İnişten sonra zemin çöker, durma.',
+  'Her şey bir arada: tahterevalli, köprü, kutular, dikenler, platform ve kaçan bayrak. Her engeli tek tek düşün, sonra hepsine dayanan aracı kur.'];
 const PART_NAME={wheel0:'Küçük teker',wheel2:'Büyük teker',wheel3:'Dev teker',weight:'Ağırlık',hinge:'Menteşe',bumper:'Tampon',gear0:'Hız dişlisi',gear2:'Güç dişlisi',soft:'Yumuşak süspansiyon'};
 function decodeSol(e){const cells={};e.c.split(' ').forEach(tok=>{const m=tok.match(/^(\d+)\.(\d+)([BKH])(.?)$/);if(!m)return;const c={base:{B:'beam',K:'weight',H:'hinge'}[m[3]]};const o=m[4];
   if(o){if('abcd'.includes(o))c.over={t:'wheel',size:'abcd'.indexOf(o),motor:true};else if('ABCD'.includes(o))c.over={t:'wheel',size:'ABCD'.indexOf(o),motor:false};else if(o==='p')c.over={t:'bumper'};else if(o==='e')c.over={t:'egg'};}
   cells[m[1]+','+m[2]]=c;});
   const xs=Object.keys(cells).map(k=>+k.split(',')[0]);const sh=Math.floor((C.COLS-(Math.max(...xs)-Math.min(...xs)+1))/2)-Math.min(...xs);
   const out={};Object.entries(cells).forEach(([k,c])=>{const [x,y]=k.split(',').map(Number);out[(x+sh)+','+y]=c;});return {cells:out,gear:e.g,susp:e.s?'soft':'hard'};}
-function rungKey(){return C.LADDERS[li].id+':'+ri;}
+function rungKey(){return mode==='camp'?campKey(ci):C.LADDERS[li].id+':'+ri;}
 function pickSolution(){const list=(SOLPACK&&SOLPACK[rungKey()])||[];for(const s of list)if(s.n.every(owned))return {sol:s};return {missing:list.length?list.reduce((a,s)=>s.n.filter(n=>!owned(n)).length<a.length?s.n.filter(n=>!owned(n)):a,list[0].n.filter(n=>!owned(n))):[]};}
-function whereUnlock(p){const k=Object.keys(UNLOCKS).find(k=>UNLOCKS[k]===p);if(!k)return '';const [id,r]=k.split(':');const L=C.LADDERS.find(l=>l.id===id);return L.name+' '+fmtRung(L,L.rungs[+r],+r);}
+function whereUnlock(p){const cu=Object.keys(C.CAMPAIGN_UNLOCK).find(k=>C.CAMPAIGN_UNLOCK[k]===p);if(cu){const i=C.CAMPAIGN.findIndex(c=>c.id===cu);return 'Macera '+(i+1)+'. bölüm';}const k=Object.keys(UNLOCKS).find(k=>UNLOCKS[k]===p);if(!k)return '';const [id,r]=k.split(':');const L=C.LADDERS.find(l=>l.id===id);return L.name+' '+fmtRung(L,L.rungs[+r],+r);}
 function describe(d){const cells=d.cells;const xs=Object.keys(cells).map(k=>+k.split(',')[0]);const x0=Math.min(...xs),x1=Math.max(...xs);const span=(x1-x0+1)*10;
   const wh={};let w=[];Object.entries(cells).forEach(([k,c])=>{if(c.over&&c.over.t==='wheel'){const key=(c.over.motor?'motorlu ':'serbest ')+['küçük','orta','büyük','dev'][c.over.size];wh[key]=(wh[key]||0)+1;}if(c.base==='weight')w.push(+k.split(',')[0]);});
   const parts=[span+' cm uzunluğunda şasi'];Object.entries(wh).forEach(([k,n])=>parts.push(n+' '+k+' teker'));
@@ -385,8 +429,8 @@ function describe(d){const cells=d.cells;const xs=Object.keys(cells).map(k=>+k.s
 function hintTiers(){const f=(prog.fails||{})[rungKey()]||0;return TIER_AT.filter(n=>f>=n).length;}
 function updateHintDot(){const k=rungKey();const seen=(prog.hintSeen||{})[k]||0;$('hintDot').hidden=!(hintTiers()>seen);}
 function showHints(){
-  const k=rungKey();const f=(prog.fails||{})[k]||0;const L=C.LADDERS[li];prog.hintSeen=prog.hintSeen||{};prog.hintSeen[k]=hintTiers();save();updateHintDot();
-  const t1=L.trap?TRAP_HINT[ri]:HINT1[L.id];const P=pickSolution();
+  const k=rungKey();const f=(prog.fails||{})[k]||0;const L=mode==='camp'?{}:C.LADDERS[li];prog.hintSeen=prog.hintSeen||{};prog.hintSeen[k]=hintTiers();save();updateHintDot();
+  const t1=mode==='camp'?CAMP_HINT[ci]:L.trap?TRAP_HINT[ri]:HINT1[L.id];const P=pickSolution();
   const tier=(i,title,body)=>{const open=f>=TIER_AT[i];return '<div class="tier'+(open?'':' locked')+'"><b>'+title+'</b>'+(open?body:'<small>'+(TIER_AT[i]-f)+' başarısız deneme sonra açılır</small>')+'</div>';};
   let b2,b3;
   if(P.sol){const d=decodeSol(P.sol.e);b2='<p>Bu testi geçen bir araç: '+describe(d)+'</p>';b3='<p>Doğrulanmış bir çözümü garaja yükleyebilirsin. Kendi tasarımın saklanır, istediğinde geri dönersin.</p><button class="btn primary" id="hLoad">Çözümü garaja yükle</button>';}
@@ -407,24 +451,48 @@ function ladderOpen(id){const r=LADDER_REQ[id];return !r||isDone(r);}
 function nextRung(id){const L=C.LADDERS.find(l=>l.id===id);for(let i=0;i<L.rungs.length;i++)if(!isDone(id+':'+i))return i;return L.rungs.length-1;}
 function fmtRung(L,v,j){if(L.trap)return isDone('trap:'+(v-1))?C.TRAPS[v-1].name:'?';return L.unit==='m'?String(v).replace('.',',')+' m':L.unit==='°'?v+'°':v+' cm';}
 function showMap(){
-  phase='map';closeGarage();$('hud').hidden=true;$('timer').hidden=true;$('btnStop').hidden=true;$('modal').hidden=true;
-  const M=$('map');let h='<h1>'+(window.APP_NAME||'Tork Garajı')+'</h1><p class="sub">Aracını kur, engelde dene, geliştir. Her basamak bir öncekinden zor.</p>';
+  phase='map';closeGarage();$('hud').hidden=true;$('timer').hidden=true;$('btnStop').hidden=true;$('modal').hidden=true;$('intro').hidden=true;
+  const M=$('map');const N=C.CAMPAIGN.length;let tot=0;for(let i=0;i<N;i++)tot+=starsOf(i);
+  let nx=0;while(nx<N-1&&isDone(campKey(nx)))nx++;if(isDone(campKey(nx))){const k=[...Array(N).keys()].find(i=>starsOf(i)<3);if(k!=null)nx=k;}
+  let h='<h1>'+(window.APP_NAME||'Tork Garajı')+'</h1><p class="sub">Aracını kur, parkurda dene, geliştir. Her bölümde bir sürpriz var.</p>';
+  h+='<div class="sect"><b>MACERA</b><span>'+tot+' / '+(N*3)+' ★</span></div>';
+  h+='<button class="cont" id="mCont"><small>'+(isDone(campKey(nx))?'Tekrar oyna':'Sıradaki bölüm')+'</small><b>'+(nx+1)+'. '+C.CAMPAIGN[nx].name+'</b><span>▶</span></button>';
+  h+='<div class="camp">';
+  C.CAMPAIGN.forEach((c,i)=>{const open=campOpen(i),d=isDone(campKey(i)),st=starsOf(i);
+    h+='<button class="lv'+(d?' done':'')+(i===nx&&!d?' next':'')+'" data-c="'+i+'"'+(open?'':' disabled')+' aria-label="'+(i+1)+'. '+c.name+'"><b>'+(open?i+1:'🔒')+'</b><span>'+(d?'★'.repeat(st)+'<i>'+'★'.repeat(3-st)+'</i>':'&nbsp;')+'</span></button>';});
+  h+='</div>';
+  h+='<div class="sect"><b>ANTRENMAN</b><span>Tek engelli testler</span></div>';
   C.LADDERS.forEach((L,i)=>{const open=ladderOpen(L.id);const nd=L.rungs.filter((_,j)=>isDone(L.id+':'+j)).length;
     h+='<button class="ladder" data-l="'+i+'"'+(open?'':' disabled')+'><div class="lhead"><b>'+L.name+'</b><span>'+(open?nd+' / '+L.rungs.length:'🔒 '+LADDER_REQ_TXT[L.id])+'</span></div><div class="rungs">';
-    const nx=nextRung(L.id);L.rungs.forEach((v,j)=>{const d=isDone(L.id+':'+j);h+='<div class="rung'+(d?' done':(open&&j===nx?' next':''))+'"'+(L.trap?' style="font-size:10px;text-align:center;line-height:1.1;padding:0 2px"':'')+'>'+fmtRung(L,v)+'</div>';});
+    const nr=nextRung(L.id);L.rungs.forEach((v,j)=>{const d=isDone(L.id+':'+j);h+='<div class="rung'+(d?' done':(open&&j===nr?' next':''))+'"'+(L.trap?' style="font-size:10px;text-align:center;line-height:1.1;padding:0 2px"':'')+'>'+fmtRung(L,v)+'</div>';});
     h+='</div></button>';});
   M.innerHTML=h;M.hidden=false;
+  $('mCont').onclick=()=>startCamp(nx,false);
+  M.querySelectorAll('.lv').forEach(b=>b.onclick=()=>startCamp(+b.dataset.c,false));
   M.querySelectorAll('.ladder').forEach(b=>b.onclick=()=>{const i=+b.dataset.l;startRung(i,nextRung(C.LADDERS[i].id),false);});
 }
 $('btnMap').onclick=()=>{if(phase==='run')return;showMap();};
 
 function startRung(i,j,run){
-  li=i;ri=j;level=C.levelFor(i,j);flagVis=level.geo.flagX||0;tries=0;lastTele=null;prevSim=null;parts=[];
+  mode='ladder';li=i;ri=j;level=C.levelFor(i,j);flagVis=level.geo.flagX||0;tries=0;lastTele=null;prevSim=null;parts=[];
   $('map').hidden=true;$('modal').hidden=true;$('hud').hidden=false;$('banner').hidden=true;
   $('hName').textContent=level.name;$('hTries').textContent='Deneme 0';
-  closeGarage();sim=C.createSim(pl,level,design);if(sim)sim._cells=design.cells;
+  closeGarage();previewSim();
   phase='intro';phaseT=0;autoRun=run;
-  $('introN').textContent=C.LADDERS[i].name+' · '+(j+1)+'. basamak';$('introT').textContent=C.LADDERS[i].trap?(isDone('trap:'+j)?C.TRAPS[j].name:'Tuzak '+(j+1)):fmtRung(C.LADDERS[i],C.LADDERS[i].rungs[j]);$('intro').hidden=false;
+  $('introN').textContent=C.LADDERS[i].name+' · '+(j+1)+'. basamak';$('introG').innerHTML='';$('introT').textContent=C.LADDERS[i].trap?(isDone('trap:'+j)?C.TRAPS[j].name:'Tuzak '+(j+1)):fmtRung(C.LADDERS[i],C.LADDERS[i].rungs[j]);$('intro').hidden=false;
+  cam.x=endX()+0.5;cam.y=groundAt(endX())+0.5;cam.s=scaleRun();cam.ay=.55;
+}
+function previewSim(){let d=design;if(validity()){const dd=defaultDesign();d={cells:compile(dd.pieces),gear:1,susp:'hard'};}sim=C.createSim(pl,level,d);if(sim)sim._cells=d.cells;}
+function goalsHtml(g,res){if(!g)return '';const t='<span class="g on">★ Bitir</span>';
+  const a=res?res.t<=g.time:null,b=res?res.cost<=g.cost:null;const cls=v=>v==null?'g':v?'g on':'g off';
+  return t+'<span class="'+cls(a)+'">★ '+fmtN(g.time)+' sn'+(res?' <small>('+fmtN(res.t,1)+')</small>':'')+'</span><span class="'+cls(b)+'">★ maliyet '+g.cost+(res?' <small>('+res.cost+')</small>':'')+'</span>';}
+function startCamp(i,run){
+  mode='camp';ci=i;const c=C.CAMPAIGN[i];level=C.campaignLevel(i);flagVis=level.geo.flagX||0;tries=0;lastTele=null;prevSim=null;parts=[];
+  $('map').hidden=true;$('modal').hidden=true;$('hud').hidden=false;$('banner').hidden=true;
+  $('hName').textContent=(i+1)+'. '+c.name;$('hTries').textContent='Deneme 0';
+  closeGarage();previewSim();
+  phase='intro';phaseT=0;autoRun=run;
+  $('introN').textContent='Macera · '+(i+1)+'. bölüm';$('introT').textContent=c.name;$('introG').innerHTML=goalsHtml(level.goals);$('intro').hidden=false;
   cam.x=endX()+0.5;cam.y=groundAt(endX())+0.5;cam.s=scaleRun();cam.ay=.55;
 }
 function openGarage(){phase='garage';$('garage').classList.remove('closed');$('btnStop').hidden=true;$('timer').hidden=true;$('intro').hidden=true;renderPalette();refreshGarage();
@@ -446,7 +514,7 @@ function teleText(S){const lg=level.geo;const goal=lg.flagX!=null?lg.flagX:lg.wa
   if(level.egg)t+=' · en sert darbe '+(S.peakG/10).toFixed(1).replace('.',',')+' g (sınır '+(level.egg/10).toFixed(0)+' g)';
   const br=S.wheels.filter(w=>w.broken).length;if(br)t+=' · '+br+' teker koptu';return t;}
 function onFail(){
-  {const k=C.LADDERS[li].id+':'+ri;prog.fails=prog.fails||{};prog.fails[k]=(prog.fails[k]||0)+1;save();}
+  {const k=rungKey();prog.fails=prog.fails||{};prog.fails[k]=(prog.fails[k]||0)+1;save();}
   phase='fail';phaseT=0;$('btnStop').hidden=true;lastTele=teleText(sim);
   if(sim.reason==='egg'&&sim.eggComp){const p=sim.eggComp.body.getWorldPoint(sim.eggLocal);for(let k=0;k<24;k++)parts.push({x:p.x,y:p.y,vx:(Math.random()-.5)*3,vy:Math.random()*3,life:1,type:'yolk',r:0.018});shake=10;}
   const b=$('banner');b.className='banner';b.textContent=REASON[sim.reason]||'OLMADI';b.hidden=false;
@@ -458,6 +526,7 @@ function startReplay(){
 }
 function endReplay(){if(phase!=='replay')return;replay=null;$('replayTag').hidden=true;prevSim=sim;openGarage();}
 function onWin(){
+  if(mode==='camp')return onWinCamp();
   phase='win';$('btnStop').hidden=true;const key=C.LADDERS[li].id+':'+ri;const first=!isDone(key);prog.done[key]=true;save();
   const b=$('banner');b.className='banner win';b.textContent='GEÇTİ!';b.hidden=false;
   const p=sim.centroid();for(let k=0;k<40;k++)parts.push({x:p.x,y:p.y+0.8,vx:(Math.random()-.5)*4,vy:Math.random()*4,life:1.4,type:'confetti',r:0.02,c:['#f2c014','#e0561b','#1d5aa6','#2fae66'][k%4]});
@@ -470,6 +539,27 @@ function onWin(){
     h+='<div class="btnrow">'+(last?'':'<button class="btn primary" id="mNext">Sıradaki: '+fmtRung(L,L.rungs[ri+1])+' ▶</button>')+'</div><div class="btnrow"><button class="btn" id="mGarage">Garaja dön</button><button class="btn" id="mMap">Harita</button></div>';
     $('card').innerHTML=h;$('modal').hidden=false;if(un)iconFor(un,$('unc'));
     if(!last)$('mNext').onclick=()=>startRung(li,ri+1,true);
+    $('mGarage').onclick=()=>{$('modal').hidden=true;prevSim=sim;lastTele=teleText(sim);openGarage();};
+    $('mMap').onclick=showMap;
+  },1300);
+}
+
+function onWinCamp(){
+  phase='win';$('btnStop').hidden=true;const c=C.CAMPAIGN[ci];const key=campKey(ci);const first=!isDone(key);prog.done[key]=true;
+  const g=level.goals||{time:1e9,cost:1e9};const mask=1|(sim.t<=g.time?2:0)|(sim.cost<=g.cost?4:0);prog.stars=prog.stars||{};const before=prog.stars[c.id]||0;prog.stars[c.id]=before|mask;save();
+  const n=(mask&1)+((mask>>1)&1)+((mask>>2)&1);
+  const b=$('banner');b.className='banner win';b.textContent='GEÇTİ!';b.hidden=false;
+  const p=sim.centroid();for(let k=0;k<40+n*20;k++)parts.push({x:p.x,y:p.y+0.8,vx:(Math.random()-.5)*4,vy:Math.random()*4,life:1.4,type:'confetti',r:0.02,c:['#f2c014','#e0561b','#1d5aa6','#2fae66'][k%4]});
+  const un=first&&C.CAMPAIGN_UNLOCK[c.id];const last=ci===C.CAMPAIGN.length-1;
+  setTimeout(()=>{b.hidden=true;
+    let h='<h3>'+c.name+'</h3><div class="stars">'+[0,1,2].map(k=>'<i class="'+(k<n?'on':'')+'" style="animation-delay:'+(0.15+k*0.25)+'s">★</i>').join('')+'</div>';
+    h+='<div class="goals">'+goalsHtml(level.goals,{t:sim.t,cost:sim.cost})+'</div>';
+    h+='<p>'+tries+'. denemede geçtin.'+(n<3?(mask&2?'':' Daha hızlı bir araç süre yıldızını getirir.')+(mask&4?'':' Daha az parça maliyet yıldızını getirir.'):' Kusursuz!')+'</p>';
+    if(un){const it=TOOLS.find(t=>t.id===un)||EXTRA[un];h+='<div class="unlock"><canvas id="unc"></canvas><div><b>YENİ PARÇA: '+it.name+'</b><span>'+it.desc+'</span></div></div>';}
+    if(last&&first)h+='<div class="unlock"><div><b>MACERA TAMAM!</b><span>Tüm bölümleri geçtin. Eksik yıldızların peşine düşebilirsin.</span></div></div>';
+    h+='<div class="btnrow">'+(last?'':'<button class="btn primary" id="mNext">Sıradaki bölüm ▶</button>')+'</div><div class="btnrow"><button class="btn" id="mGarage">Yıldız için tekrar</button><button class="btn" id="mMap">Harita</button></div>';
+    $('card').innerHTML=h;$('modal').hidden=false;if(un)iconFor(un,$('unc'));
+    if(!last)$('mNext').onclick=()=>startCamp(ci+1,false);
     $('mGarage').onclick=()=>{$('modal').hidden=true;prevSim=sim;lastTele=teleText(sim);openGarage();};
     $('mMap').onclick=showMap;
   },1300);
@@ -493,7 +583,7 @@ function frame(now){
   if(phase==='run'){acc+=dt;S._ev=S._ev||0;
     while(acc>=C.DT&&phase==='run'){S.step();acc-=C.DT;effects(S);
       if(S.status==='win')onWin();else if(S.status==='fail')onFail();}
-    $('timer').innerHTML=S.t.toFixed(1).replace('.',',')+' <small>/ '+level.time+' s</small>';stepIdx=S.frames.length-1;
+    $('timer').innerHTML=S.t.toFixed(1).replace('.',',')+' <small>/ '+level.time+' s'+(level.goals?(S.t<=level.goals.time?' · <span style="color:#b98f06">★ '+fmtN(level.goals.time)+'</span>':' · ★ '+fmtN(level.goals.time)):'')+'</small>';stepIdx=S.frames.length-1;
   }else if(phase==='fail'||phase==='win'){acc+=dt;while(acc>=C.DT){S.world.step(C.DT,8,3);acc-=C.DT;}}
   else acc=0;
   // camera
@@ -509,6 +599,7 @@ function frame(now){
   }
   if(phase==='garage'){requestAnimationFrame(frame);return;}
   {const tgt=(sim&&sim.flagX!=null)?sim.flagX:level.geo.flagX;if(tgt!=null){if(!flagVis||phase==='intro'&&!sim)flagVis=tgt;flagVis+=(tgt-flagVis)*Math.min(1,dt*3);}}
+  curFrame=phase==='replay'&&S?S.frames[Math.floor(replay.i)]:null;
   bg();worldTf();drawWorld();
   if(phase==='run'&&prevSim&&prevSim.frames.length){const f=prevSim.frames[Math.min(stepIdx,prevSim.frames.length-1)];drawSim(prevSim,f,0.22);}
   if(phase==='replay')drawSim(S,S.frames[Math.floor(replay.i)]);else drawSim(S);
@@ -516,6 +607,6 @@ function frame(now){
   if(phase==='replay'){ctx.setTransform(DPR,0,0,DPR,0,0);const g=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.3,W/2,H/2,Math.max(W,H)*0.7);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.28)');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);}
   requestAnimationFrame(frame);
 }
-window.__pg={get phase(){return phase},get sim(){return sim},beginRun,startRung,showMap,design:()=>design,setDesign:d=>{design=d;design.pieces=d.pieces||cellsToPieces(d.cells);design.cells=compile(design.pieces);saveDesign();}};
+window.__pg={get phase(){return phase},get sim(){return sim},get level(){return level},beginRun,startRung,startCamp,showMap,design:()=>design,setDesign:d=>{design=d;design.pieces=d.pieces||cellsToPieces(d.cells);design.cells=compile(design.pieces);saveDesign();}};
 showMap();requestAnimationFrame(frame);
 })();
