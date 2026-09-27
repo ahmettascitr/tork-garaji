@@ -29,6 +29,7 @@ Bu depo, Lego/Technic tarzı araç inşa etme oyunudur. Oyuncu ızgaralı bir ga
 8. `android/` klasöründe yalnızca gerçekten gerekiyorsa değişiklik yap. Ad, paket kimliği ve sürüm `app.config.json` + `scripts/patch-android.js` üzerinden yönetilir.
 9. Uygulama adını değiştirme isteği gelirse sadece `app.config.json` içindeki `appName` alanını değiştir. `appId` (paket kimliği) Play'e ilk yüklemeden sonra değiştirilemez; asla değiştirme.
 10. Git commit yapma, iş akışı yapar.
+11. "Son değişikliği geri al" gibi isteklerde `git log` ile ilgili commit'i bul ve `git revert --no-commit <sha>` kullan; sonra `npm test`.
 
 ## Oyun kavramları (kısa)
 

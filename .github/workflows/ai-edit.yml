@@ -62,7 +62,7 @@ jobs:
             Git commit yapma; bunu iş akışı yapacak.
           claude_args: |
             --max-turns 80
-            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,Bash(npm test),Bash(npm run *),Bash(node *),Bash(git diff*),Bash(git status*)"
+            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,Bash(npm test),Bash(npm run *),Bash(node *),Bash(git diff*),Bash(git status*),Bash(git log*),Bash(git show*),Bash(git revert --no-commit*)"
             --json-schema '{"type":"object","properties":{"ozet":{"type":"string","description":"Oyun sahibine Türkçe, teknik olmayan 2-5 cümlelik özet: ne değişti, oyuncu ne fark edecek"},"surum_notu":{"type":"string","description":"Play Store için tek cümlelik Türkçe sürüm notu"}},"required":["ozet","surum_notu"]}'
 
       - name: Özet
