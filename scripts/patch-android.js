@@ -36,7 +36,7 @@ rw('app/build.gradle',s=>{
     }
     buildTypes {`);
     s=s.replace(/release \{\n            minifyEnabled false/,`release {
-            if (System.getenv("ANDROID_KEYSTORE_PATH")) { signingConfig signingConfigs.release }
+            if (System.getenv("ANDROID_KEYSTORE_PATH")) { signingConfig signingConfigs.release } else { signingConfig signingConfigs.debug }
             minifyEnabled false`);
   }
   return s;});

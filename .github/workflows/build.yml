@@ -76,7 +76,7 @@ jobs:
         with: { name: "surum-${{ steps.out.outputs.v }}", path: out/ }
       - name: Play Console'a yükle
         id: play
-        if: env.TRACK != 'none' && env.HAS_PLAY == 'true'
+        if: env.TRACK != 'none' && env.HAS_PLAY == 'true' && env.HAS_KEY == 'true'
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
@@ -88,6 +88,8 @@ jobs:
         if: success()
         run: |
           PLAY="Play: yüklenmedi (ayar yok ya da kanal 'none')"
+          [ "${HAS_KEY}" != "true" ] && PLAY="${PLAY}
+          ⚠️ İmza anahtarı eklenmemiş: bu APK test imzalı, Play'e yüklenemez."
           [ "${{ steps.play.outcome }}" = "success" ] && PLAY="Play: '${TRACK}' kanalına yüklendi"
           scripts/telegram.sh "✅ Sürüm ${{ steps.out.outputs.v }} hazır
           ${PLAY}
