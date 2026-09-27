@@ -52,15 +52,29 @@ jobs:
           echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
           node scripts/patch-android.js && npx cap sync android
       - name: İmza anahtarı
+        id: key
         if: env.HAS_KEY == 'true'
-        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload-key.jks"
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          K_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          K_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          # Kopyala-yapıştır hatalarını tolere et: boşluklar, satır sonları, "AD=değer" biçimi
+          clean() { printf '%s' "$1" | sed -E 's/^[A-Z_]+=//' | tr -d ' \r\n\t'; }
+          printf '%s' "$KS_B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/upload-key.jks" 2>/dev/null || true
+          KSP=$(clean "$KS_PASS"); KP=$(clean "$K_PASS"); KA=$(clean "$K_ALIAS"); [ -z "$KP" ] && KP="$KSP"
+          echo "::add-mask::$KSP"; echo "::add-mask::$KP"
+          MSG=""
+          if [ ! -s "$RUNNER_TEMP/upload-key.jks" ]; then MSG="ANDROID_KEYSTORE_BASE64 çözülemedi. upload-key.jks.base64.txt dosyasının tamamını yeniden yapıştır."
+          elif ! keytool -list -keystore "$RUNNER_TEMP/upload-key.jks" -storepass "$KSP" >/dev/null 2>&1; then MSG="ANDROID_KEYSTORE_PASSWORD yanlış. sifreler.txt içinde '=' işaretinden SONRAKİ kısmı yapıştır."
+          elif ! keytool -list -keystore "$RUNNER_TEMP/upload-key.jks" -storepass "$KSP" -alias "$KA" >/dev/null 2>&1; then MSG="ANDROID_KEY_ALIAS yanlış. Değeri sadece: upload"
+          fi
+          if [ -n "$MSG" ]; then echo "::error::$MSG"; echo "msg=$MSG" >> $GITHUB_OUTPUT; exit 1; fi
+          { echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload-key.jks"; echo "ANDROID_KEYSTORE_PASSWORD=$KSP"; echo "ANDROID_KEY_PASSWORD=$KP"; echo "ANDROID_KEY_ALIAS=$KA"; } >> $GITHUB_ENV
+          echo "İmza anahtarı doğrulandı."
       - name: Gradle derlemesi
         working-directory: android
-        env:
-          ANDROID_KEYSTORE_PATH: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && format('{0}/upload-key.jks', runner.temp) || '' }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: chmod +x gradlew && ./gradlew --no-daemon bundleRelease assembleRelease
       - name: Dosyaları topla
         id: out
@@ -97,4 +111,9 @@ jobs:
       - name: Telegram — hata
         if: failure()
         run: |
-          scripts/telegram.sh "❌ Derleme başarısız. Ayrıntı: ${RUN_URL}"
+          if [ -n "${{ steps.key.outputs.msg }}" ]; then
+            scripts/telegram.sh "❌ İmza anahtarı sorunu: ${{ steps.key.outputs.msg }}
+          GitHub → Settings → Secrets and variables → Actions sayfasında düzeltip /apk yaz."
+          else
+            scripts/telegram.sh "❌ Derleme başarısız. Ayrıntı: ${RUN_URL}"
+          fi
